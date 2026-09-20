@@ -373,13 +373,16 @@ export default function WeeklyCompetition() {
     );
   });
 
-  return calculated.map((row, index) => {
-    const classification: DisplayRow["classification"] =
-      index < 5
-        ? "Tốt"
-        : index < 10
-        ? "Khá"
-        : "Trung bình";
+  return calculated.map((row, index): DisplayRow => {
+    let classification: DisplayRow["classification"];
+
+    if (index < 5) {
+      classification = "Tốt";
+    } else if (index < 10) {
+      classification = "Khá";
+    } else {
+      classification = "Trung bình";
+    }
 
     return {
       ...row,
@@ -388,7 +391,6 @@ export default function WeeklyCompetition() {
     };
   });
 }
-
   function saveAll() {
     setMessage(
       "Các thay đổi đã được lưu tự động."
