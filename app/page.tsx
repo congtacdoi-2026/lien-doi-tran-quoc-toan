@@ -1573,6 +1573,22 @@ function RLDVModule({ role }: { role: RLDVRole }) {
     [students]
   );
 
+  const displayRows = useMemo(() => {
+    const byStudent = new Map<string, RLDVItem[]>();
+    rows.forEach((item) => {
+      const list = byStudent.get(item.student_id) ?? [];
+      list.push(item);
+      byStudent.set(item.student_id, list);
+    });
+
+    return students.flatMap((student) => {
+      const studentRows = byStudent.get(student.id);
+      return studentRows && studentRows.length > 0
+        ? studentRows.map((item) => ({ student, item }))
+        : [{ student, item: null as RLDVItem | null }];
+    });
+  }, [students, rows]);
+
   async function loadData() {
     setLoading(true);
     setError("");
@@ -1784,42 +1800,57 @@ function RLDVModule({ role }: { role: RLDVRole }) {
                     Đang tải dữ liệu...
                   </td>
                 </tr>
-              ) : rows.length === 0 ? (
+              ) : students.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="rldv-empty">
-                    Chưa có hồ sơ RLĐV.
+                    Chưa có học sinh trong dữ liệu Học sinh.
                   </td>
                 </tr>
               ) : (
-                rows.map((item, index) => {
-                  const student = studentMap.get(item.student_id);
-                  const schoolClass = student
-                    ? classMap.get(student.class_id)
-                    : undefined;
+                displayRows.map(({ student, item }, index) => {
+                  const schoolClass = classMap.get(student.class_id);
 
                   return (
-                    <tr key={item.id}>
+                    <tr key={item?.id ?? `student-${student.id}`}>
                       <td>{index + 1}</td>
-                      <td className="rldv-name">{student?.full_name ?? "—"}</td>
+                      <td className="rldv-name">{student.full_name}</td>
                       <td>{schoolClass?.class_name ?? "—"}</td>
                       <td>
                         <span className="rldv-rank-badge">
-                          {getRankLabel(item.student_id) || "—"}
+                          {getRankLabel(student.id) || "—"}
                         </span>
                       </td>
-                      <td>{item.training_content}</td>
-                      <td>{item.result || "—"}</td>
-                      <td>{formatDate(item.updated_date)}</td>
-                      <td>{item.notes || "—"}</td>
+                      <td>{item?.training_content || <span className="rldv-not-updated">Chưa cập nhật</span>}</td>
+                      <td>{item?.result || "—"}</td>
+                      <td>{item ? formatDate(item.updated_date) : "—"}</td>
+                      <td>{item?.notes || "—"}</td>
                       <td>
                         <div className="rldv-actions">
-                          <button onClick={() => openEdit(item)}>Sửa</button>
-                          <button
-                            className="rldv-delete"
-                            onClick={() => handleDelete(item.id)}
-                          >
-                            Xóa
-                          </button>
+                          {item ? (
+                            <>
+                              <button onClick={() => openEdit(item)}>Sửa</button>
+                              <button
+                                className="rldv-delete"
+                                onClick={() => handleDelete(item.id)}
+                              >
+                                Xóa
+                              </button>
+                            </>
+                          ) : (
+                            <button onClick={() => {
+                              setEditingId(null);
+                              setForm({
+                                student_id: student.id,
+                                training_content: "",
+                                result: "",
+                                updated_date: new Date().toISOString().slice(0, 10),
+                                notes: "",
+                              });
+                              setError("");
+                              setMessage("");
+                              setShowForm(true);
+                            }}>Cập nhật</button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -1959,20 +1990,22 @@ function RLDVModule({ role }: { role: RLDVRole }) {
         .rldv-note { margin-bottom:15px; padding:12px 14px; border:1px solid #d7e9f8; border-radius:11px; background:#f4faff; color:#41637d; font-size:14px; }
         .rldv-error { margin-bottom:15px; padding:12px 14px; border:1px solid #ffc4bf; border-radius:11px; background:#fff1ef; color:#b42318; }
         .rldv-message { margin-bottom:15px; padding:12px 14px; border:1px solid #bce5ca; border-radius:11px; background:#f0fff4; color:#18794e; }
-        .rldv-table-wrap { width:100%; overflow-x:auto; border:1px solid #dce4ee; border-radius:18px; }
-        .rldv-table { width:100%; min-width:1120px; border-collapse:collapse; font-size:14px; }
-        .rldv-table th { padding:13px 10px; background:#f6f9fc; border-bottom:1px solid #dce4ee; color:#152b4b; font-weight:800; text-align:center; white-space:nowrap; }
-        .rldv-table td { padding:12px 10px; border-bottom:1px solid #edf1f5; color:#334155; vertical-align:middle; }
+        .rldv-table-wrap { width:100%; overflow-x:hidden; border:1px solid #dce4ee; border-radius:18px; }
+        .rldv-table { width:100%; table-layout:fixed; border-collapse:collapse; font-size:13px; }
+        .rldv-table th { padding:11px 7px; background:#f6f9fc; border-bottom:1px solid #dce4ee; color:#152b4b; font-weight:800; text-align:center; white-space:normal; }
+        .rldv-table td { padding:10px 7px; border-bottom:1px solid #edf1f5; color:#334155; vertical-align:middle; overflow-wrap:anywhere; word-break:break-word; }
         .rldv-table tbody tr:last-child td { border-bottom:0; }
-        .rldv-table td:first-child { text-align:center; width:48px; }
-        .rldv-table td:nth-child(2) { min-width:170px; }
-        .rldv-table td:nth-child(3) { text-align:center; white-space:nowrap; }
-        .rldv-table td:nth-child(4) { text-align:center; min-width:130px; }
-        .rldv-table td:nth-child(5) { min-width:220px; }
-        .rldv-table td:nth-child(6) { min-width:110px; }
-        .rldv-table td:nth-child(7) { white-space:nowrap; text-align:center; }
-        .rldv-table td:nth-child(8) { min-width:150px; }
+        .rldv-table th:nth-child(1), .rldv-table td:nth-child(1) { width:4%; text-align:center; }
+        .rldv-table th:nth-child(2), .rldv-table td:nth-child(2) { width:14%; }
+        .rldv-table th:nth-child(3), .rldv-table td:nth-child(3) { width:7%; text-align:center; }
+        .rldv-table th:nth-child(4), .rldv-table td:nth-child(4) { width:10%; text-align:center; }
+        .rldv-table th:nth-child(5), .rldv-table td:nth-child(5) { width:20%; }
+        .rldv-table th:nth-child(6), .rldv-table td:nth-child(6) { width:9%; text-align:center; }
+        .rldv-table th:nth-child(7), .rldv-table td:nth-child(7) { width:9%; text-align:center; }
+        .rldv-table th:nth-child(8), .rldv-table td:nth-child(8) { width:14%; }
+        .rldv-table th:nth-child(9), .rldv-table td:nth-child(9) { width:13%; text-align:center; }
         .rldv-name { color:#162b4a !important; font-weight:800; }
+        .rldv-not-updated { color:#94a3b8; font-style:italic; }
         .rldv-rank-badge { display:inline-block; padding:5px 9px; border-radius:999px; background:#eef6ff; color:#1769aa; font-size:12px; font-weight:800; white-space:nowrap; }
         .rldv-actions { display:flex; justify-content:center; gap:7px; }
         .rldv-actions button { border:1px solid #d6e0ea; border-radius:8px; padding:7px 9px; background:#fff; color:#1769aa; font-weight:700; cursor:pointer; }
