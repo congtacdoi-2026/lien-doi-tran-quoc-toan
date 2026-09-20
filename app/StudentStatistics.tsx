@@ -44,6 +44,10 @@ function percent(value: number, total: number) {
   if (!total) return "0.0%";
   return `${((value / total) * 100).toFixed(1)}%`;
 }
+function isEthnicMinority(ethnicity: string | null) {
+  const name = ethnicity?.trim().toLowerCase();
+  return !!name && name !== "kinh";
+}
 
 export default function StudentStatistics() {
   const [students, setStudents] = useState<Student[]>([]);
@@ -92,17 +96,22 @@ export default function StudentStatistics() {
   }, [students]);
 
   const ethnicities = useMemo(() => {
-    return Array.from(
-      new Set(students.map((s) => s.ethnicity?.trim()).filter(Boolean) as string[])
-    ).sort((a, b) => a.localeCompare(b, "vi"));
-  }, [students]);
+  return Array.from(
+    new Set(
+      students
+        .map((s) => s.ethnicity?.trim())
+        .filter((name) => isEthnicMinority(name ?? null)) as string[]
+    )
+  ).sort((a, b) => a.localeCompare(b, "vi"));
+}, [students]);
 
   const total = students.length;
   const female = students.filter((s) => s.gender === "Nữ").length;
-  const ethnic = students.filter((s) => !!s.ethnicity?.trim()).length;
-  const femaleEthnic = students.filter(
-    (s) => s.gender === "Nữ" && !!s.ethnicity?.trim()
-  ).length;
+  const ethnic = students.filter((s) => isEthnicMinority(s.ethnicity)).length;
+
+const femaleEthnic = students.filter(
+  (s) => s.gender === "Nữ" && isEthnicMinority(s.ethnicity)
+).length;
   const team = students.filter((s) => s.is_union_member).length;
   const children = total - team;
   const mainCampus = students.filter(
@@ -143,8 +152,14 @@ export default function StudentStatistics() {
       const row = map.get(key)!;
       row.total += 1;
       if (s.gender === "Nữ") row.female += 1;
-      if (s.ethnicity?.trim()) row.ethnicity += 1;
-      if (s.gender === "Nữ" && s.ethnicity?.trim()) row.femaleEthnicity += 1;
+      if (isEthnicMinority(s.ethnicity)) row.ethnicity += 1;
+
+if (
+  s.gender === "Nữ" &&
+  isEthnicMinority(s.ethnicity)
+) {
+  row.femaleEthnicity += 1;
+}
       if (s.is_union_member) row.team += 1;
       else row.children += 1;
     });
@@ -157,10 +172,12 @@ export default function StudentStatistics() {
   const ethnicityStats = useMemo<EthnicityStat[]>(() => {
     const map = new Map<string, number>();
     students.forEach((s) => {
-      const name = s.ethnicity?.trim();
-      if (!name) return;
-      map.set(name, (map.get(name) ?? 0) + 1);
-    });
+  const name = s.ethnicity?.trim();
+
+  if (!isEthnicMinority(name ?? null)) return;
+
+  map.set(name, (map.get(name) ?? 0) + 1);
+});
 
     return Array.from(map.entries())
       .map(([name, count]) => ({ name, count, rate: total ? count / total : 0 }))
