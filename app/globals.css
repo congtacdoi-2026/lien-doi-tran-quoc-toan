@@ -3375,3 +3375,288 @@ select:focus-visible {
     padding: 9px 7px;
   }
 }
+
+/* =========================================================
+   THI ĐUA TUẦN - BẢNG GỌN, KHÔNG CUỘN NGANG
+   ========================================================= */
+
+.competition-layout {
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 14px;
+}
+
+.competition-table-panel {
+  min-width: 0;
+}
+
+.competition-table-scroll {
+  overflow-x: hidden;
+}
+
+.competition-table {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+  font-size: 10px;
+}
+
+.competition-table th {
+  height: 43px;
+  padding: 5px 2px;
+  font-size: 10px;
+  line-height: 1.15;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.competition-table td {
+  height: 68px;
+  padding: 4px 2px;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.competition-table th:first-child,
+.competition-table td:first-child {
+  width: 30px;
+}
+
+.competition-table th:nth-child(2),
+.competition-table td:nth-child(2) {
+  width: 48px;
+}
+
+.competition-table th:nth-child(n+3):nth-child(-n+9),
+.competition-table td:nth-child(n+3):nth-child(-n+9) {
+  width: auto;
+}
+
+.competition-table th:nth-child(10),
+.competition-table td:nth-child(10) {
+  width: 55px;
+}
+
+.competition-table th:nth-child(11),
+.competition-table td:nth-child(11) {
+  width: 47px;
+}
+
+.competition-table th:nth-child(12),
+.competition-table td:nth-child(12) {
+  width: 70px;
+}
+
+.competition-table td:nth-child(2) strong {
+  font-size: 11px;
+}
+
+.score-control {
+  width: 34px;
+  min-height: 54px;
+  gap: 0;
+  padding: 1px 0;
+  border-radius: 7px;
+}
+
+.score-control button {
+  width: 28px;
+  height: 16px;
+  font-size: 9px;
+}
+
+.score-control strong {
+  min-width: 24px;
+  font-size: 11px;
+}
+
+.competition-total {
+  min-width: 30px;
+  padding: 4px 4px;
+  font-size: 11px;
+}
+
+.competition-rank-number {
+  min-width: 27px;
+  height: 27px;
+  font-size: 10px;
+}
+
+.competition-classification {
+  min-width: 60px;
+  padding: 5px 4px;
+  font-size: 9px;
+}
+
+.competition-pagination {
+  min-height: 48px;
+  padding: 6px 10px;
+  font-size: 10px;
+}
+
+.competition-sidebar {
+  min-width: 0;
+}
+
+.competition-side-panel {
+  padding: 14px;
+}
+
+.competition-side-title {
+  margin-bottom: 10px;
+}
+
+.competition-side-title > span {
+  width: 32px;
+  height: 32px;
+  font-size: 16px;
+}
+
+.competition-side-title h3 {
+  font-size: 14px;
+}
+
+.competition-side-title p {
+  font-size: 10px;
+}
+
+.competition-top-row {
+  min-height: 42px;
+  grid-template-columns: 30px 1fr auto;
+  gap: 6px;
+}
+
+.competition-top-row strong {
+  font-size: 12px;
+}
+
+.competition-top-rank {
+  font-size: 10px;
+}
+
+.competition-summary-grid {
+  gap: 7px;
+}
+
+.competition-summary-card {
+  min-height: 76px;
+  padding: 7px;
+}
+
+.competition-summary-card > span {
+  font-size: 16px;
+}
+
+.competition-summary-card strong {
+  font-size: 19px;
+}
+
+.competition-summary-card small {
+  font-size: 9px;
+}
+
+@media (max-width: 1050px) {
+  .competition-layout {
+    grid-template-columns: minmax(0, 1fr) 270px;
+  }
+
+  .competition-table {
+    font-size: 9px;
+  }
+
+  .competition-table th {
+    font-size: 9px;
+  }
+
+  .competition-table th:first-child,
+  .competition-table td:first-child {
+    width: 27px;
+  }
+
+  .competition-table th:nth-child(2),
+  .competition-table td:nth-child(2) {
+    width: 44px;
+  }
+
+  .competition-table th:nth-child(10),
+  .competition-table td:nth-child(10) {
+    width: 50px;
+  }
+
+  .competition-table th:nth-child(11),
+  .competition-table td:nth-child(11) {
+    width: 43px;
+  }
+
+  .competition-table th:nth-child(12),
+  .competition-table td:nth-child(12) {
+    width: 63px;
+  }
+}
+
+@media (max-width: 850px) {
+  .competition-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .competition-table-scroll {
+    overflow-x: hidden;
+  }
+
+  .competition-sidebar {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .competition-note-panel {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 600px) {
+  .competition-table th {
+    font-size: 8px;
+  }
+
+  .competition-table td {
+    height: 62px;
+  }
+
+  .score-control {
+    width: 31px;
+    min-height: 50px;
+  }
+
+  .score-control button {
+    width: 25px;
+    font-size: 8px;
+  }
+
+  .score-control strong {
+    font-size: 10px;
+  }
+
+  .competition-table th:first-child,
+  .competition-table td:first-child {
+    width: 25px;
+  }
+
+  .competition-table th:nth-child(2),
+  .competition-table td:nth-child(2) {
+    width: 40px;
+  }
+
+  .competition-table th:nth-child(10),
+  .competition-table td:nth-child(10) {
+    width: 46px;
+  }
+
+  .competition-table th:nth-child(11),
+  .competition-table td:nth-child(11) {
+    width: 40px;
+  }
+
+  .competition-table th:nth-child(12),
+  .competition-table td:nth-child(12) {
+    width: 58px;
+  }
+}
