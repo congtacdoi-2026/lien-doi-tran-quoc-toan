@@ -179,9 +179,25 @@ export default function WeeklyCompetition() {
         );
       });
 
-      // Khi đang nhập, luôn giữ thứ tự cố định 1A1 → 5A5.
-      // Chỉ sau khi bấm “Lưu tất cả” mới tính vị thứ và xếp loại.
-      setRows(buildFixedRows(baseRows, classes));
+      // Khi hiển thị, luôn giữ thứ tự nhập cố định 1A1 → 5A5.
+      // Vị thứ vẫn được tính cho đủ cả 25 lớp, kể cả các lớp có tổng 0
+      // và TPT không cần bấm điều chỉnh điểm.
+      const rankedForDisplay = buildRanking(baseRows, classes);
+      const rankMap = new Map(
+        rankedForDisplay.map((row) => [
+          row.class_id,
+          { rank: row.rank, classification: row.classification },
+        ])
+      );
+
+      setRows(
+        buildFixedRows(baseRows, classes).map((row) => ({
+          ...row,
+          rank: rankMap.get(row.class_id)?.rank ?? 0,
+          classification:
+            rankMap.get(row.class_id)?.classification ?? "Trung bình",
+        }))
+      );
       setPage(1);
 
       const { data: userData } = await supabase.auth.getUser();
@@ -254,16 +270,15 @@ export default function WeeklyCompetition() {
       );
     });
 
+    // Đồng hạng theo Tổng điểm:
+    // 1, 0, 0, -1, -1, -1, -2
+    // => 1, 2, 2, 3, 3, 3, 4
     return rankedRows.map((row, index) => {
-      // Xếp vị thứ theo kiểu "đồng hạng":
-      // cùng Tổng điểm => cùng Vị thứ.
-      // Ví dụ: 1, 0, 0, -1, -1, -1 => 1, 2, 2, 3, 3, 3.
-      const rank =
-        index === 0
-          ? 1
-          : row.total === rankedRows[index - 1].total
-          ? rankedRows[index - 1].rank
-          : rankedRows[index - 1].rank + 1;
+      const firstSameScoreIndex = rankedRows.findIndex(
+        (item) => item.total === row.total
+      );
+
+      const rank = firstSameScoreIndex + 1;
 
       const classification: DisplayRow["classification"] =
         rank <= 5
@@ -292,70 +307,34 @@ export default function WeeklyCompetition() {
     currentPage * pageSize
   );
 
-  // Xếp hạng bên phải cập nhật theo điểm đang nhập,
-  // nhưng KHÔNG làm thay đổi thứ tự 25 lớp trong bảng nhập.
+  // Xếp hạng bên phải và bảng đầy đủ dùng cùng một quy tắc đồng hạng.
   const sidebarRanking = useMemo(() => {
-    const sorted = [...rows].sort((a, b) => {
-      if (b.total !== a.total) return b.total - a.total;
-
-      return (
-        MAIN_CLASS_ORDER.indexOf(a.className) -
-        MAIN_CLASS_ORDER.indexOf(b.className)
-      );
-    });
-
-    return sorted.map((row, index) => {
-      const rank =
-        index === 0
-          ? 1
-          : row.total === sorted[index - 1].total
-          ? sorted[index - 1].rank
-          : sorted[index - 1].rank + 1;
-
-      return {
-        ...row,
-        rank,
-        classification:
-          rank <= 5
-            ? ("Tốt" as const)
-            : rank <= 10
-            ? ("Khá" as const)
-            : ("Trung bình" as const),
-      };
-    });
+    return buildRanking(
+      rows.map((row) => ({
+        id: row.id,
+        week_id: row.week_id,
+        class_id: row.class_id,
+        sinh_hoat: row.sinh_hoat,
+        the_duc: row.the_duc,
+        ve_sinh: row.ve_sinh,
+        vi_pham_khac: row.vi_pham_khac,
+        atgt: row.atgt,
+        di_tre: row.di_tre,
+        thuong: row.thuong,
+      })),
+      rows.map((row) => ({
+        id: row.class_id,
+        class_name: row.className,
+        grade: row.grade,
+        campus: "Trường chính" as const,
+        competition_enabled: true,
+      }))
+    );
   }, [rows]);
 
   const topFive = sidebarRanking.slice(0, 5);
 
-  const fullRanking = useMemo(() => {
-    const sorted = [...rows].sort((a, b) => {
-      if (b.total !== a.total) return b.total - a.total;
-      return (
-        MAIN_CLASS_ORDER.indexOf(a.className) -
-        MAIN_CLASS_ORDER.indexOf(b.className)
-      );
-    });
-
-    return sorted.map((row, index) => {
-      const rank =
-        index === 0
-          ? 1
-          : row.total === sorted[index - 1].total
-          ? sorted[index - 1].rank
-          : sorted[index - 1].rank + 1;
-
-      return {
-        ...row,
-        rank,
-        classification:
-          rank <= 5
-            ? ("Tốt" as const)
-            : rank <= 10
-            ? ("Khá" as const)
-            : ("Trung bình" as const),
-      };
-    });
-  }, [rows]);
+  const fullRanking = sidebarRanking;
 
   const summary = useMemo(
     () => ({
@@ -383,8 +362,8 @@ export default function WeeklyCompetition() {
     const oldValue = row[field];
     const newValue = oldValue + delta;
 
-    setRows((currentRows) =>
-      currentRows.map((item) =>
+    setRows((currentRows) => {
+      const changedRows = currentRows.map((item) =>
         item.class_id === row.class_id
           ? {
               ...item,
@@ -406,8 +385,45 @@ export default function WeeklyCompetition() {
                 (field === "thuong" ? delta : 0),
             }
           : item
-      )
-    );
+      );
+
+      // Tính lại vị thứ cho đủ 25 lớp nhưng giữ nguyên thứ tự hiển thị 1A1 → 5A5.
+      const ranked = buildRanking(
+        changedRows.map((item) => ({
+          id: item.id,
+          week_id: item.week_id,
+          class_id: item.class_id,
+          sinh_hoat: item.sinh_hoat,
+          the_duc: item.the_duc,
+          ve_sinh: item.ve_sinh,
+          vi_pham_khac: item.vi_pham_khac,
+          atgt: item.atgt,
+          di_tre: item.di_tre,
+          thuong: item.thuong,
+        })),
+        changedRows.map((item) => ({
+          id: item.class_id,
+          class_name: item.className,
+          grade: item.grade,
+          campus: "Trường chính" as const,
+          competition_enabled: true,
+        }))
+      );
+
+      const rankMap = new Map(
+        ranked.map((item) => [
+          item.class_id,
+          { rank: item.rank, classification: item.classification },
+        ])
+      );
+
+      return changedRows.map((item) => ({
+        ...item,
+        rank: rankMap.get(item.class_id)?.rank ?? 0,
+        classification:
+          rankMap.get(item.class_id)?.classification ?? "Trung bình",
+      }));
+    });
   }
 
   async function saveAll() {
