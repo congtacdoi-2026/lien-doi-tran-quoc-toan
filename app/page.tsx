@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import StudentsModule from "./StudentsModule";
+import StudentStatistics from "./StudentStatistics";
 
 type Role = "TPT" | "CLASS" | null;
 
@@ -383,6 +384,8 @@ export default function Home() {
   />
 ) : active === "Học sinh" ? (
   <StudentsModule />
+) : active === "Thống kê học sinh" ? (
+  <StudentStatistics />
 ) : (
   <ComingSoon title={active} />
 )}
