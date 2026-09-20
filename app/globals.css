@@ -3196,3 +3196,182 @@ select:focus-visible {
     padding: 14px;
   }
 }
+
+/* Thi đua: trạng thái chỉ xem / đang lưu */
+.competition-save-button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.competition-classification.empty {
+  color: #94a3b8;
+  background: #f8fafc;
+}
+
+/* =========================================================
+   BẢNG XẾP HẠNG ĐẦY ĐỦ - THI ĐUA TUẦN
+   ========================================================= */
+
+.competition-ranking-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  box-sizing: border-box;
+  background: rgba(15, 23, 42, 0.55);
+}
+
+.competition-ranking-modal {
+  width: min(760px, 100%);
+  max-height: calc(100vh - 40px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 20px;
+  background: #ffffff;
+  box-shadow: 0 25px 80px rgba(15, 23, 42, 0.28);
+}
+
+.competition-ranking-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 15px;
+  padding: 20px 22px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.competition-ranking-modal-header h2 {
+  margin: 0;
+  color: #17233c;
+  font-size: 20px;
+}
+
+.competition-ranking-modal-header p {
+  margin: 5px 0 0;
+  color: #718096;
+  font-size: 12px;
+}
+
+.competition-ranking-modal-close {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border: 1px solid #dbe5ed;
+  border-radius: 9px;
+  color: #475569;
+  background: #ffffff;
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.competition-ranking-modal-close:hover {
+  background: #f1f5f9;
+}
+
+.competition-ranking-modal-table-wrap {
+  flex: 1;
+  overflow: auto;
+}
+
+.competition-ranking-modal-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.competition-ranking-modal-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 12px 10px;
+  color: #1e3a8a;
+  background: #eff6ff;
+  border-bottom: 1px solid #dbeafe;
+  text-align: center;
+  font-weight: 800;
+}
+
+.competition-ranking-modal-table td {
+  padding: 11px 10px;
+  border-bottom: 1px solid #edf1f5;
+  color: #334155;
+  text-align: center;
+}
+
+.competition-ranking-modal-table tr:hover td {
+  background: #f8fbff;
+}
+
+.competition-ranking-modal-table td:nth-child(2) {
+  text-align: left;
+}
+
+.competition-modal-rank {
+  display: inline-grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 50%;
+  color: #1769c2;
+  background: #eaf4ff;
+  font-weight: 850;
+}
+
+.competition-ranking-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 18px;
+  border-top: 1px solid #e2e8f0;
+  color: #718096;
+  font-size: 12px;
+}
+
+.competition-ranking-modal-footer button {
+  min-width: 80px;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 8px;
+  color: #ffffff;
+  background: #1683d8;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.competition-ranking-modal-footer button:hover {
+  background: #0f6fb9;
+}
+
+@media (max-width: 600px) {
+  .competition-ranking-modal-overlay {
+    padding: 10px;
+  }
+
+  .competition-ranking-modal {
+    max-height: calc(100vh - 20px);
+    border-radius: 16px;
+  }
+
+  .competition-ranking-modal-header {
+    padding: 15px;
+  }
+
+  .competition-ranking-modal-header h2 {
+    font-size: 17px;
+  }
+
+  .competition-ranking-modal-table {
+    font-size: 12px;
+  }
+
+  .competition-ranking-modal-table th,
+  .competition-ranking-modal-table td {
+    padding: 9px 7px;
+  }
+}
