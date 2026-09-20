@@ -255,16 +255,26 @@ export default function WeeklyCompetition() {
     });
 
     return rankedRows.map((row, index) => {
+      // Xếp vị thứ theo kiểu "đồng hạng":
+      // cùng Tổng điểm => cùng Vị thứ.
+      // Ví dụ: 1, 0, 0, -1, -1, -1 => 1, 2, 2, 3, 3, 3.
+      const rank =
+        index === 0
+          ? 1
+          : row.total === rankedRows[index - 1].total
+          ? rankedRows[index - 1].rank
+          : rankedRows[index - 1].rank + 1;
+
       const classification: DisplayRow["classification"] =
-        index < 5
+        rank <= 5
           ? "Tốt"
-          : index < 10
+          : rank <= 10
           ? "Khá"
           : "Trung bình";
 
       return {
         ...row,
-        rank: index + 1,
+        rank,
         classification,
       };
     });
@@ -294,16 +304,25 @@ export default function WeeklyCompetition() {
       );
     });
 
-    return sorted.map((row, index) => ({
-      ...row,
-      rank: index + 1,
-      classification:
-        index < 5
-          ? ("Tốt" as const)
-          : index < 10
-          ? ("Khá" as const)
-          : ("Trung bình" as const),
-    }));
+    return sorted.map((row, index) => {
+      const rank =
+        index === 0
+          ? 1
+          : row.total === sorted[index - 1].total
+          ? sorted[index - 1].rank
+          : sorted[index - 1].rank + 1;
+
+      return {
+        ...row,
+        rank,
+        classification:
+          rank <= 5
+            ? ("Tốt" as const)
+            : rank <= 10
+            ? ("Khá" as const)
+            : ("Trung bình" as const),
+      };
+    });
   }, [rows]);
 
   const topFive = sidebarRanking.slice(0, 5);
@@ -317,16 +336,25 @@ export default function WeeklyCompetition() {
       );
     });
 
-    return sorted.map((row, index) => ({
-      ...row,
-      rank: index + 1,
-      classification:
-        index < 5
-          ? ("Tốt" as const)
-          : index < 10
-          ? ("Khá" as const)
-          : ("Trung bình" as const),
-    }));
+    return sorted.map((row, index) => {
+      const rank =
+        index === 0
+          ? 1
+          : row.total === sorted[index - 1].total
+          ? sorted[index - 1].rank
+          : sorted[index - 1].rank + 1;
+
+      return {
+        ...row,
+        rank,
+        classification:
+          rank <= 5
+            ? ("Tốt" as const)
+            : rank <= 10
+            ? ("Khá" as const)
+            : ("Trung bình" as const),
+      };
+    });
   }, [rows]);
 
   const summary = useMemo(
