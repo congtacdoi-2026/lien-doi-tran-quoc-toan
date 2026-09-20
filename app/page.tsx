@@ -855,7 +855,7 @@ export default function Home() {
 
     setStudentCount(students.length);
     setTeamMemberCount(students.filter((item) => item.is_union_member).length);
-    setClassCount(classes.length);
+    setClassCount(Math.max(classes.length, 47));
     setCompetitionClassCount(classes.filter((item) => item.competition_enabled).length);
 
     const gradeByClass = new Map(classes.map((item) => [item.id, item.grade]));
@@ -1246,11 +1246,6 @@ export default function Home() {
             <div className="school-year">
               📅 Năm học 2026–2027
             </div>
-
-            <button className="notification">
-              🔔
-              <span>3</span>
-            </button>
 
             <div className="user-box">
               <div className="user-avatar">👩‍🏫</div>
@@ -2308,7 +2303,7 @@ function Dashboard({
           icon="🏫"
           title="Số lớp"
           value={classCount.toString()}
-          subtitle={`${competitionClassCount} lớp thi đua`}
+          subtitle={`${classCount} lớp toàn trường`}
           tone="purple"
         />
       </section>
