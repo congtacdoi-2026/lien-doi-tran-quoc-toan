@@ -1104,6 +1104,8 @@ export default function Home() {
           <StudentRecordsModule kind="violation" />
         ) : active === "Khen thưởng" ? (
           <StudentRecordsModule kind="reward" />
+        ) : active === "RLĐV" ? (
+          <RLDVModule role={role === "TPT" ? "TPT" : "CLASS"} />
         ) : (
           <ComingSoon title={active} />
         )}
@@ -1514,6 +1516,485 @@ function StudentRecordsModule({ kind }: { kind: RecordKind }) {
         .records-save { border:0; background:#1976d2; color:#fff; }
         .records-save:disabled { opacity:.6; cursor:default; }
         @media (max-width:700px) { .records-page { padding:14px; } .records-card { padding:16px; border-radius:16px; } .records-heading { align-items:flex-start; flex-direction:column; } .records-add { width:100%; } .records-heading h2 { font-size:23px; } }
+      `}</style>
+    </section>
+  );
+}
+
+
+type RLDVRole = "TPT" | "CLASS";
+
+type RLDVStudent = {
+  id: string;
+  full_name: string;
+  class_id: string;
+};
+
+type RLDVClass = {
+  id: string;
+  class_name: string;
+  grade: number;
+};
+
+type RLDVItem = {
+  id: string;
+  student_id: string;
+  training_content: string;
+  result: string | null;
+  updated_date: string;
+  notes: string | null;
+};
+
+function RLDVModule({ role }: { role: RLDVRole }) {
+  const [students, setStudents] = useState<RLDVStudent[]>([]);
+  const [classes, setClasses] = useState<RLDVClass[]>([]);
+  const [rows, setRows] = useState<RLDVItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [form, setForm] = useState({
+    student_id: "",
+    training_content: "",
+    result: "",
+    updated_date: new Date().toISOString().slice(0, 10),
+    notes: "",
+  });
+
+  const classMap = useMemo(
+    () => new Map(classes.map((item) => [item.id, item])),
+    [classes]
+  );
+
+  const studentMap = useMemo(
+    () => new Map(students.map((item) => [item.id, item])),
+    [students]
+  );
+
+  async function loadData() {
+    setLoading(true);
+    setError("");
+
+    const [studentsResult, classesResult, recordsResult] = await Promise.all([
+      supabase
+        .from("students")
+        .select("id, full_name, class_id")
+        .order("full_name", { ascending: true }),
+      supabase
+        .from("classes")
+        .select("id, class_name, grade")
+        .order("class_name", { ascending: true }),
+      supabase
+        .from("rl_doi_vien")
+        .select("id, student_id, training_content, result, updated_date, notes")
+        .order("updated_date", { ascending: false }),
+    ]);
+
+    const firstError =
+      studentsResult.error || classesResult.error || recordsResult.error;
+
+    if (firstError) {
+      setError(`Không tải được dữ liệu RLĐV: ${firstError.message}`);
+      setRows([]);
+    } else {
+      setStudents((studentsResult.data ?? []) as RLDVStudent[]);
+      setClasses((classesResult.data ?? []) as RLDVClass[]);
+      setRows((recordsResult.data ?? []) as RLDVItem[]);
+    }
+
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  function getRankLabel(studentId: string) {
+    const student = studentMap.get(studentId);
+    if (!student) return "";
+    const schoolClass = classMap.get(student.class_id);
+    if (!schoolClass) return "";
+    return schoolClass.grade <= 3 ? "Dự bị đội viên" : "Hạng Măng non";
+  }
+
+  function openAdd() {
+    setEditingId(null);
+    setForm({
+      student_id: "",
+      training_content: "",
+      result: "",
+      updated_date: new Date().toISOString().slice(0, 10),
+      notes: "",
+    });
+    setError("");
+    setMessage("");
+    setShowForm(true);
+  }
+
+  function openEdit(item: RLDVItem) {
+    setEditingId(item.id);
+    setForm({
+      student_id: item.student_id,
+      training_content: item.training_content,
+      result: item.result ?? "",
+      updated_date: item.updated_date,
+      notes: item.notes ?? "",
+    });
+    setError("");
+    setMessage("");
+    setShowForm(true);
+  }
+
+  async function handleSave(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError("");
+    setMessage("");
+
+    if (!form.student_id || !form.training_content.trim()) {
+      setError("Vui lòng chọn học sinh và nhập nội dung rèn luyện.");
+      return;
+    }
+
+    setSaving(true);
+
+    if (editingId) {
+      const payload: {
+        student_id: string;
+        training_content: string;
+        result: string | null;
+        updated_date: string;
+        notes: string | null;
+      } = {
+        student_id: form.student_id,
+        training_content: form.training_content.trim(),
+        result: form.result.trim() || null,
+        updated_date: form.updated_date,
+        notes: form.notes.trim() || null,
+      };
+
+      const { error: updateError } = await supabase
+        .from("rl_doi_vien")
+        .update(payload)
+        .eq("id", editingId);
+
+      if (updateError) {
+        setError(`Không lưu được RLĐV: ${updateError.message}`);
+        setSaving(false);
+        return;
+      }
+    } else {
+      const payload: {
+        student_id: string;
+        training_content: string;
+        result: string | null;
+        updated_date: string;
+        notes: string | null;
+      } = {
+        student_id: form.student_id,
+        training_content: form.training_content.trim(),
+        result: form.result.trim() || null,
+        updated_date: form.updated_date,
+        notes: form.notes.trim() || null,
+      };
+
+      const { error: insertError } = await supabase
+        .from("rl_doi_vien")
+        .insert(payload);
+
+      if (insertError) {
+        setError(`Không lưu được RLĐV: ${insertError.message}`);
+        setSaving(false);
+        return;
+      }
+    }
+
+    setSaving(false);
+    setShowForm(false);
+    setEditingId(null);
+    setMessage(editingId ? "Đã cập nhật hồ sơ RLĐV." : "Đã thêm hồ sơ RLĐV.");
+    await loadData();
+  }
+
+  async function handleDelete(id: string) {
+    if (!window.confirm("Bạn có chắc muốn xóa hồ sơ RLĐV này không?")) return;
+
+    setError("");
+    setMessage("");
+
+    const { error: deleteError } = await supabase
+      .from("rl_doi_vien")
+      .delete()
+      .eq("id", id);
+
+    if (deleteError) {
+      setError(`Không xóa được hồ sơ RLĐV: ${deleteError.message}`);
+      return;
+    }
+
+    setMessage("Đã xóa hồ sơ RLĐV.");
+    await loadData();
+  }
+
+  return (
+    <section className="rldv-page">
+      <div className="rldv-card">
+        <div className="rldv-heading">
+          <div>
+            <h2>⭐ RLĐV</h2>
+            <p>
+              Quản lý Chương trình Rèn luyện Đội viên theo từng học sinh.
+            </p>
+          </div>
+
+          <button className="rldv-add" onClick={openAdd}>
+            + Cập nhật RLĐV
+          </button>
+        </div>
+
+        {role === "CLASS" && (
+          <div className="rldv-note">
+            Tài khoản lớp chỉ xem và cập nhật hồ sơ RLĐV của học sinh lớp mình.
+          </div>
+        )}
+
+        {error && <div className="rldv-error">{error}</div>}
+        {message && <div className="rldv-message">{message}</div>}
+
+        <div className="rldv-table-wrap">
+          <table className="rldv-table">
+            <thead>
+              <tr>
+                <th>STT</th>
+                <th>Họ tên</th>
+                <th>Lớp</th>
+                <th>Hạng</th>
+                <th>Nội dung rèn luyện</th>
+                <th>Kết quả</th>
+                <th>Ngày cập nhật</th>
+                <th>Ghi chú</th>
+                <th>Thao tác</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan={9} className="rldv-empty">
+                    Đang tải dữ liệu...
+                  </td>
+                </tr>
+              ) : rows.length === 0 ? (
+                <tr>
+                  <td colSpan={9} className="rldv-empty">
+                    Chưa có hồ sơ RLĐV.
+                  </td>
+                </tr>
+              ) : (
+                rows.map((item, index) => {
+                  const student = studentMap.get(item.student_id);
+                  const schoolClass = student
+                    ? classMap.get(student.class_id)
+                    : undefined;
+
+                  return (
+                    <tr key={item.id}>
+                      <td>{index + 1}</td>
+                      <td className="rldv-name">{student?.full_name ?? "—"}</td>
+                      <td>{schoolClass?.class_name ?? "—"}</td>
+                      <td>
+                        <span className="rldv-rank-badge">
+                          {getRankLabel(item.student_id) || "—"}
+                        </span>
+                      </td>
+                      <td>{item.training_content}</td>
+                      <td>{item.result || "—"}</td>
+                      <td>{formatDate(item.updated_date)}</td>
+                      <td>{item.notes || "—"}</td>
+                      <td>
+                        <div className="rldv-actions">
+                          <button onClick={() => openEdit(item)}>Sửa</button>
+                          <button
+                            className="rldv-delete"
+                            onClick={() => handleDelete(item.id)}
+                          >
+                            Xóa
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {showForm && (
+          <div className="rldv-overlay">
+            <div className="rldv-modal">
+              <div className="rldv-modal-header">
+                <h3>{editingId ? "Sửa hồ sơ RLĐV" : "Cập nhật RLĐV"}</h3>
+                <button
+                  className="rldv-close"
+                  onClick={() => setShowForm(false)}
+                  type="button"
+                >
+                  ×
+                </button>
+              </div>
+
+              <form className="rldv-form" onSubmit={handleSave}>
+                <label>
+                  Học sinh
+                  <select
+                    value={form.student_id}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        student_id: e.target.value,
+                      }))
+                    }
+                    required
+                  >
+                    <option value="">-- Chọn học sinh --</option>
+                    {students.map((student) => {
+                      const schoolClass = classMap.get(student.class_id);
+                      return (
+                        <option key={student.id} value={student.id}>
+                          {student.full_name} — {schoolClass?.class_name ?? ""}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </label>
+
+                <div className="rldv-preview">
+                  <span>Hạng</span>
+                  <strong>
+                    {form.student_id
+                      ? getRankLabel(form.student_id)
+                      : "Tự xác định theo khối lớp"}
+                  </strong>
+                </div>
+
+                <label>
+                  Nội dung rèn luyện
+                  <textarea
+                    rows={3}
+                    value={form.training_content}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        training_content: e.target.value,
+                      }))
+                    }
+                    placeholder="Nhập nội dung rèn luyện..."
+                    required
+                  />
+                </label>
+
+                <label>
+                  Kết quả
+                  <input
+                    value={form.result}
+                    onChange={(e) =>
+                      setForm((prev) => ({ ...prev, result: e.target.value }))
+                    }
+                    placeholder="Ví dụ: Đạt, Chưa đạt..."
+                  />
+                </label>
+
+                <label>
+                  Ngày cập nhật
+                  <input
+                    type="date"
+                    value={form.updated_date}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        updated_date: e.target.value,
+                      }))
+                    }
+                    required
+                  />
+                </label>
+
+                <label>
+                  Ghi chú
+                  <textarea
+                    rows={2}
+                    value={form.notes}
+                    onChange={(e) =>
+                      setForm((prev) => ({ ...prev, notes: e.target.value }))
+                    }
+                  />
+                </label>
+
+                <div className="rldv-modal-footer">
+                  <button
+                    type="button"
+                    className="rldv-cancel"
+                    onClick={() => setShowForm(false)}
+                  >
+                    Hủy
+                  </button>
+                  <button type="submit" className="rldv-save" disabled={saving}>
+                    {saving ? "Đang lưu..." : "Lưu"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <style jsx global>{`
+        .rldv-page { padding: 8px 0 28px; }
+        .rldv-card { background:#fff; border:1px solid #dce4ee; border-radius:24px; padding:24px; box-shadow:0 10px 30px rgba(20,55,90,.07); }
+        .rldv-heading { display:flex; align-items:center; justify-content:space-between; gap:20px; margin-bottom:18px; }
+        .rldv-heading h2 { margin:0; color:#10213d; font-size:28px; }
+        .rldv-heading p { margin:7px 0 0; color:#718096; font-size:14px; }
+        .rldv-add { border:0; border-radius:11px; padding:12px 18px; background:#1976d2; color:#fff; font-weight:800; font-size:15px; cursor:pointer; white-space:nowrap; }
+        .rldv-note { margin-bottom:15px; padding:12px 14px; border:1px solid #d7e9f8; border-radius:11px; background:#f4faff; color:#41637d; font-size:14px; }
+        .rldv-error { margin-bottom:15px; padding:12px 14px; border:1px solid #ffc4bf; border-radius:11px; background:#fff1ef; color:#b42318; }
+        .rldv-message { margin-bottom:15px; padding:12px 14px; border:1px solid #bce5ca; border-radius:11px; background:#f0fff4; color:#18794e; }
+        .rldv-table-wrap { width:100%; overflow-x:auto; border:1px solid #dce4ee; border-radius:18px; }
+        .rldv-table { width:100%; min-width:1120px; border-collapse:collapse; font-size:14px; }
+        .rldv-table th { padding:13px 10px; background:#f6f9fc; border-bottom:1px solid #dce4ee; color:#152b4b; font-weight:800; text-align:center; white-space:nowrap; }
+        .rldv-table td { padding:12px 10px; border-bottom:1px solid #edf1f5; color:#334155; vertical-align:middle; }
+        .rldv-table tbody tr:last-child td { border-bottom:0; }
+        .rldv-table td:first-child { text-align:center; width:48px; }
+        .rldv-table td:nth-child(2) { min-width:170px; }
+        .rldv-table td:nth-child(3) { text-align:center; white-space:nowrap; }
+        .rldv-table td:nth-child(4) { text-align:center; min-width:130px; }
+        .rldv-table td:nth-child(5) { min-width:220px; }
+        .rldv-table td:nth-child(6) { min-width:110px; }
+        .rldv-table td:nth-child(7) { white-space:nowrap; text-align:center; }
+        .rldv-table td:nth-child(8) { min-width:150px; }
+        .rldv-name { color:#162b4a !important; font-weight:800; }
+        .rldv-rank-badge { display:inline-block; padding:5px 9px; border-radius:999px; background:#eef6ff; color:#1769aa; font-size:12px; font-weight:800; white-space:nowrap; }
+        .rldv-actions { display:flex; justify-content:center; gap:7px; }
+        .rldv-actions button { border:1px solid #d6e0ea; border-radius:8px; padding:7px 9px; background:#fff; color:#1769aa; font-weight:700; cursor:pointer; }
+        .rldv-actions .rldv-delete { color:#b42318; background:#fff5f3; border-color:#ffd1cb; }
+        .rldv-empty { padding:42px !important; text-align:center !important; color:#75839a; }
+        .rldv-overlay { position:fixed; inset:0; z-index:10000; display:flex; align-items:center; justify-content:center; padding:20px; background:rgba(15,23,42,.52); }
+        .rldv-modal { width:min(580px,100%); max-height:90vh; overflow:auto; border-radius:20px; background:#fff; box-shadow:0 25px 70px rgba(15,23,42,.28); }
+        .rldv-modal-header { display:flex; align-items:center; justify-content:space-between; padding:19px 22px; border-bottom:1px solid #e6ebf1; }
+        .rldv-modal-header h3 { margin:0; color:#17233c; font-size:19px; }
+        .rldv-close { width:34px; height:34px; border:1px solid #dce3eb; border-radius:9px; background:#fff; color:#64748b; font-size:24px; cursor:pointer; }
+        .rldv-form { display:grid; gap:15px; padding:22px; }
+        .rldv-form label { display:grid; gap:7px; color:#26344c; font-size:14px; font-weight:800; }
+        .rldv-form input,.rldv-form select,.rldv-form textarea { width:100%; box-sizing:border-box; padding:11px 12px; border:1px solid #d5dee8; border-radius:10px; outline:none; color:#17233c; background:#fff; font:inherit; }
+        .rldv-form input:focus,.rldv-form select:focus,.rldv-form textarea:focus { border-color:#2788dc; box-shadow:0 0 0 3px rgba(39,136,220,.1); }
+        .rldv-preview { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:11px 12px; border:1px solid #dbe8f4; border-radius:10px; background:#f6faff; color:#536579; font-size:14px; }
+        .rldv-preview strong { color:#1769aa; }
+        .rldv-modal-footer { display:flex; justify-content:flex-end; gap:10px; padding:15px 22px 20px; border-top:1px solid #e6ebf1; }
+        .rldv-cancel,.rldv-save { padding:10px 16px; border-radius:10px; font-weight:800; cursor:pointer; }
+        .rldv-cancel { border:1px solid #d7dfe8; background:#fff; color:#526174; }
+        .rldv-save { border:0; background:#1976d2; color:#fff; }
+        .rldv-save:disabled { opacity:.6; cursor:default; }
+        @media (max-width:700px) { .rldv-page { padding:14px 0; } .rldv-card { padding:16px; border-radius:16px; } .rldv-heading { align-items:flex-start; flex-direction:column; } .rldv-add { width:100%; } .rldv-heading h2 { font-size:23px; } }
       `}</style>
     </section>
   );
