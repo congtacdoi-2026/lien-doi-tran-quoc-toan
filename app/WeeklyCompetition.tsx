@@ -103,6 +103,7 @@ export default function WeeklyCompetition() {
   const [page, setPage] = useState(1);
   const [canEditAll, setCanEditAll] = useState(false);
   const [myClassId, setMyClassId] = useState<string | null>(null);
+  const [showFullRanking, setShowFullRanking] = useState(false);
 
   const pageSize = 10;
 
@@ -282,6 +283,27 @@ export default function WeeklyCompetition() {
   );
 
   const topFive = rows.filter((row) => row.rank > 0).slice(0, 5);
+
+  const fullRanking = useMemo(() => {
+    const sorted = [...rows].sort((a, b) => {
+      if (b.total !== a.total) return b.total - a.total;
+      return (
+        MAIN_CLASS_ORDER.indexOf(a.className) -
+        MAIN_CLASS_ORDER.indexOf(b.className)
+      );
+    });
+
+    return sorted.map((row, index) => ({
+      ...row,
+      rank: index + 1,
+      classification:
+        index < 5
+          ? ("Tốt" as const)
+          : index < 10
+          ? ("Khá" as const)
+          : ("Trung bình" as const),
+    }));
+  }, [rows]);
 
   const summary = useMemo(
     () => ({
@@ -679,7 +701,11 @@ export default function WeeklyCompetition() {
                 ))}
               </div>
 
-              <button className="competition-view-ranking">
+              <button
+                type="button"
+                className="competition-view-ranking"
+                onClick={() => setShowFullRanking(true)}
+              >
                 Xem đầy đủ bảng xếp hạng →
               </button>
             </section>
@@ -749,6 +775,97 @@ export default function WeeklyCompetition() {
               </ul>
             </section>
           </aside>
+        </div>
+      )}
+      {showFullRanking && (
+        <div
+          className="competition-ranking-modal-overlay"
+          onClick={() => setShowFullRanking(false)}
+        >
+          <div
+            className="competition-ranking-modal"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="competition-ranking-modal-header">
+              <div>
+                <h2>🏆 Bảng xếp hạng tuần {currentWeek}</h2>
+                <p>
+                  Xếp hạng đầy đủ 25 lớp trường chính theo Tổng điểm
+                </p>
+              </div>
+
+              <button
+                type="button"
+                className="competition-ranking-modal-close"
+                onClick={() => setShowFullRanking(false)}
+                aria-label="Đóng bảng xếp hạng"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="competition-ranking-modal-table-wrap">
+              <table className="competition-ranking-modal-table">
+                <thead>
+                  <tr>
+                    <th>Vị thứ</th>
+                    <th>Lớp</th>
+                    <th>Tổng điểm</th>
+                    <th>Xếp loại</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {fullRanking.map((row) => (
+                    <tr key={row.class_id}>
+                      <td>
+                        <span className="competition-modal-rank">
+                          {row.rank}
+                        </span>
+                      </td>
+                      <td>
+                        <strong>{row.className}</strong>
+                      </td>
+                      <td>
+                        <span
+                          className={`competition-total total-${
+                            row.total < 0
+                              ? "negative"
+                              : row.total === 0
+                              ? "zero"
+                              : "positive"
+                          }`}
+                        >
+                          {row.total}
+                        </span>
+                      </td>
+                      <td>
+                        <span
+                          className={`competition-classification ${
+                            row.classification
+                              .toLowerCase()
+                              .replace(" ", "-")
+                          }`}
+                        >
+                          {row.classification}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="competition-ranking-modal-footer">
+              <span>25 lớp trường chính</span>
+              <button
+                type="button"
+                onClick={() => setShowFullRanking(false)}
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
