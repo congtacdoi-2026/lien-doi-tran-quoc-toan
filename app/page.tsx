@@ -1106,6 +1106,8 @@ export default function Home() {
           <StudentRecordsModule kind="reward" />
         ) : active === "RLĐV" ? (
           <RLDVModule role={role === "TPT" ? "TPT" : "CLASS"} />
+        ) : active === "Cài đặt" ? (
+          <SettingsModule role={role === "TPT" ? "TPT" : "CLASS"} />
         ) : (
           <ComingSoon title={active} />
         )}
@@ -2337,6 +2339,421 @@ function InfoPanel({
 
       <button className="text-button">Xem tất cả →</button>
     </div>
+  );
+}
+
+
+type SettingsClass = {
+  id: string;
+  class_name: string;
+  grade: number;
+  campus: "Trường chính" | "Điểm trường";
+  competition_enabled: boolean;
+  is_active: boolean;
+};
+
+function SettingsModule({ role }: { role: "TPT" | "CLASS" }) {
+  const [currentWeek, setCurrentWeek] = useState(1);
+  const [savedWeek, setSavedWeek] = useState(1);
+  const [schoolYearId, setSchoolYearId] = useState<string | null>(null);
+  const [schoolYearName, setSchoolYearName] = useState("2026–2027");
+  const [classes, setClasses] = useState<SettingsClass[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [savingWeek, setSavingWeek] = useState(false);
+  const [savingClass, setSavingClass] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [showClassForm, setShowClassForm] = useState(false);
+  const [classForm, setClassForm] = useState({
+    class_name: "",
+    grade: "1",
+    campus: "Trường chính" as "Trường chính" | "Điểm trường",
+    competition_enabled: false,
+  });
+
+  const loadSettings = async () => {
+    if (role !== "TPT") return;
+    setLoading(true);
+    setError("");
+
+    const [{ data: year, error: yearError }, { data: setting, error: settingError }] =
+      await Promise.all([
+        supabase
+          .from("school_years")
+          .select("id,name,is_current")
+          .eq("is_current", true)
+          .maybeSingle(),
+        supabase
+          .from("system_settings")
+          .select("id,current_week,school_year_id")
+          .limit(1)
+          .maybeSingle(),
+      ]);
+
+    if (yearError) {
+      setError(`Không tải được năm học: ${yearError.message}`);
+      setLoading(false);
+      return;
+    }
+
+    if (settingError) {
+      setError(`Không tải được cài đặt: ${settingError.message}`);
+      setLoading(false);
+      return;
+    }
+
+    const yearId = year?.id ?? setting?.school_year_id ?? null;
+    setSchoolYearId(yearId);
+    setSchoolYearName(year?.name ?? "2026–2027");
+
+    const week = Number(setting?.current_week ?? 1);
+    setCurrentWeek(week);
+    setSavedWeek(week);
+
+    if (!yearId) {
+      setClasses([]);
+      setLoading(false);
+      return;
+    }
+
+    const { data: classRows, error: classError } = await supabase
+      .from("classes")
+      .select("id,class_name,grade,campus,competition_enabled,is_active")
+      .eq("school_year_id", yearId)
+      .order("grade", { ascending: true })
+      .order("campus", { ascending: true })
+      .order("class_name", { ascending: true });
+
+    if (classError) {
+      setError(`Không tải được danh sách lớp: ${classError.message}`);
+      setLoading(false);
+      return;
+    }
+
+    setClasses((classRows ?? []) as SettingsClass[]);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    loadSettings();
+  }, [role]);
+
+  const saveWeek = async () => {
+    if (role !== "TPT") return;
+    setSavingWeek(true);
+    setError("");
+    setNotice("");
+
+    const { data: setting } = await supabase
+      .from("system_settings")
+      .select("id")
+      .limit(1)
+      .maybeSingle();
+
+    if (!setting?.id) {
+      setError("Chưa có dòng cài đặt hệ thống để lưu tuần hiện tại.");
+      setSavingWeek(false);
+      return;
+    }
+
+    const { error: updateError } = await supabase
+      .from("system_settings")
+      .update({ current_week: currentWeek, school_year_id: schoolYearId })
+      .eq("id", setting.id);
+
+    if (updateError) {
+      setError(`Không lưu được tuần hiện tại: ${updateError.message}`);
+    } else {
+      setSavedWeek(currentWeek);
+      setNotice(`Đã lưu Tuần ${currentWeek} cho năm học ${schoolYearName}.`);
+    }
+
+    setSavingWeek(false);
+  };
+
+  const resetClassForm = () => {
+    setEditingId(null);
+    setClassForm({
+      class_name: "",
+      grade: "1",
+      campus: "Trường chính",
+      competition_enabled: false,
+    });
+    setShowClassForm(false);
+  };
+
+  const openAddClass = () => {
+    if (role !== "TPT") return;
+    setEditingId(null);
+    setClassForm({
+      class_name: "",
+      grade: "1",
+      campus: "Trường chính",
+      competition_enabled: false,
+    });
+    setShowClassForm(true);
+    setError("");
+    setNotice("");
+  };
+
+  const openEditClass = (item: SettingsClass) => {
+    setEditingId(item.id);
+    setClassForm({
+      class_name: item.class_name,
+      grade: String(item.grade),
+      campus: item.campus,
+      competition_enabled: item.competition_enabled,
+    });
+    setShowClassForm(true);
+    setError("");
+    setNotice("");
+  };
+
+  const saveClass = async (event: FormEvent) => {
+    event.preventDefault();
+    if (role !== "TPT" || !schoolYearId) return;
+
+    const name = classForm.class_name.trim();
+    const grade = Number(classForm.grade);
+
+    if (!name) {
+      setError("Vui lòng nhập tên lớp.");
+      return;
+    }
+    if (grade < 1 || grade > 5) {
+      setError("Khối phải từ 1 đến 5.");
+      return;
+    }
+
+    setSavingClass(true);
+    setError("");
+    setNotice("");
+
+    const payload = {
+      school_year_id: schoolYearId,
+      class_name: name,
+      grade,
+      campus: classForm.campus,
+      competition_enabled: classForm.competition_enabled,
+      is_active: true,
+    };
+
+    const result = editingId
+      ? await supabase.from("classes").update(payload).eq("id", editingId)
+      : await supabase.from("classes").insert(payload);
+
+    if (result.error) {
+      setError(`Không lưu được lớp: ${result.error.message}`);
+      setSavingClass(false);
+      return;
+    }
+
+    await loadSettings();
+    resetClassForm();
+    setNotice(editingId ? "Đã cập nhật lớp." : "Đã thêm lớp.");
+    setSavingClass(false);
+  };
+
+  const deleteClass = async (item: SettingsClass) => {
+    if (role !== "TPT") return;
+    const ok = window.confirm(
+      `Xóa lớp ${item.class_name}? Nếu lớp đã có học sinh, hệ thống có thể không cho xóa.`
+    );
+    if (!ok) return;
+
+    setError("");
+    setNotice("");
+    const { error: deleteError } = await supabase
+      .from("classes")
+      .delete()
+      .eq("id", item.id);
+
+    if (deleteError) {
+      setError(`Không xóa được lớp ${item.class_name}: ${deleteError.message}`);
+      return;
+    }
+
+    await loadSettings();
+    setNotice(`Đã xóa lớp ${item.class_name}.`);
+  };
+
+  if (role !== "TPT") {
+    return (
+      <section className="settings-page">
+        <div className="settings-card">
+          <div className="settings-lock">🔒</div>
+          <h2>Cài đặt</h2>
+          <p>Tài khoản lớp không có quyền thay đổi cài đặt hệ thống.</p>
+        </div>
+      </section>
+    );
+  }
+
+  const mainClasses = classes.filter((item) => item.campus === "Trường chính");
+  const pointClasses = classes.filter((item) => item.campus === "Điểm trường");
+
+  return (
+    <section className="settings-page">
+      <style jsx global>{`
+        .settings-page { display:flex; flex-direction:column; gap:18px; }
+        .settings-card { background:#fff; border:1px solid #e2e8f0; border-radius:20px; padding:22px; box-shadow:0 8px 24px rgba(15,23,42,.05); }
+        .settings-card h2 { margin:0; font-size:22px; color:#102a43; }
+        .settings-subtitle { margin:6px 0 0; color:#718096; }
+        .settings-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:18px; }
+        .settings-section-title { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:14px; }
+        .settings-section-title h3 { margin:0; font-size:18px; color:#173b63; }
+        .settings-field { display:flex; flex-direction:column; gap:7px; }
+        .settings-field label { font-weight:700; color:#334e68; }
+        .settings-field input,.settings-field select { height:42px; border:1px solid #cbd5e1; border-radius:10px; padding:0 12px; font-size:15px; background:#fff; }
+        .settings-week-row { display:flex; align-items:end; gap:12px; flex-wrap:wrap; }
+        .settings-week-row .settings-field { min-width:170px; }
+        .settings-btn { border:0; border-radius:10px; padding:10px 15px; font-weight:700; cursor:pointer; background:#1976d2; color:#fff; }
+        .settings-btn.secondary { background:#edf4fb; color:#175a9c; }
+        .settings-btn.danger { background:#fff0f0; color:#c62828; }
+        .settings-note { margin-top:12px; padding:11px 13px; border-radius:10px; background:#f7fafc; color:#52606d; font-size:14px; }
+        .settings-alert { padding:12px 14px; border-radius:10px; background:#fff1f0; color:#c62828; border:1px solid #ffc9c5; }
+        .settings-success { padding:12px 14px; border-radius:10px; background:#eefbf3; color:#16794c; border:1px solid #b7ebcd; }
+        .settings-class-summary { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
+        .settings-badge { padding:7px 11px; border-radius:999px; background:#eef5ff; color:#1d5fa7; font-weight:700; font-size:13px; }
+        .settings-table-wrap { overflow:hidden; border:1px solid #e2e8f0; border-radius:14px; }
+        .settings-table { width:100%; border-collapse:collapse; table-layout:fixed; }
+        .settings-table th,.settings-table td { padding:10px 9px; border-bottom:1px solid #edf2f7; text-align:left; font-size:13px; }
+        .settings-table th { background:#f7fafc; color:#243b53; font-weight:800; }
+        .settings-table th:nth-child(1){width:45px}.settings-table th:nth-child(2){width:100px}.settings-table th:nth-child(3){width:65px}.settings-table th:nth-child(4){width:105px}.settings-table th:nth-child(5){width:105px}.settings-table th:nth-child(6){width:115px}
+        .settings-actions { display:flex; gap:6px; flex-wrap:wrap; }
+        .settings-mini-btn { border:0; border-radius:7px; padding:6px 8px; cursor:pointer; font-size:12px; font-weight:700; }
+        .settings-mini-btn.edit { background:#edf5ff; color:#1565c0; }
+        .settings-mini-btn.delete { background:#fff1f1; color:#c62828; }
+        .settings-form-grid { display:grid; grid-template-columns:1.4fr .7fr 1fr 1fr; gap:12px; align-items:end; }
+        .settings-check { display:flex; align-items:center; gap:8px; height:42px; font-size:14px; font-weight:700; color:#334e68; }
+        .settings-check input { width:17px; height:17px; }
+        .settings-form-actions { display:flex; gap:8px; margin-top:14px; }
+        .settings-lock { font-size:36px; margin-bottom:8px; }
+        .settings-empty { padding:24px; text-align:center; color:#718096; }
+        @media(max-width:900px){ .settings-grid,.settings-form-grid{grid-template-columns:1fr}.settings-table-wrap{overflow-x:auto}.settings-table{min-width:700px} }
+      `}</style>
+
+      <div className="settings-card">
+        <h2>⚙️ Cài đặt</h2>
+        <p className="settings-subtitle">Thiết lập năm học, tuần thi đua và danh sách lớp của Liên đội.</p>
+      </div>
+
+      {error && <div className="settings-alert">{error}</div>}
+      {notice && <div className="settings-success">{notice}</div>}
+
+      <div className="settings-grid">
+        <div className="settings-card">
+          <div className="settings-section-title">
+            <h3>📅 Năm học & tuần thi đua</h3>
+          </div>
+          <div className="settings-week-row">
+            <div className="settings-field">
+              <label>Năm học hiện tại</label>
+              <input value={schoolYearName} readOnly />
+            </div>
+            <div className="settings-field">
+              <label>Tuần thi đua hiện tại</label>
+              <select value={currentWeek} onChange={(e) => setCurrentWeek(Number(e.target.value))}>
+                {Array.from({ length: 40 }, (_, i) => i + 1).map((week) => (
+                  <option key={week} value={week}>Tuần {week}</option>
+                ))}
+              </select>
+            </div>
+            <button className="settings-btn" onClick={saveWeek} disabled={savingWeek}>
+              {savingWeek ? "Đang lưu..." : "💾 Lưu tuần"}
+            </button>
+          </div>
+          <div className="settings-note">Đang lưu: <strong>Tuần {savedWeek}</strong>. Mục Thi đua tuần sẽ sử dụng tuần này.</div>
+        </div>
+
+        <div className="settings-card">
+          <div className="settings-section-title">
+            <h3>🏫 Thống kê lớp</h3>
+          </div>
+          <div className="settings-class-summary">
+            <span className="settings-badge">Tổng: {classes.length} lớp</span>
+            <span className="settings-badge">Trường chính: {mainClasses.length}</span>
+            <span className="settings-badge">Điểm trường: {pointClasses.length}</span>
+            <span className="settings-badge">Thi đua: {classes.filter((item) => item.competition_enabled).length}</span>
+          </div>
+          <div className="settings-note">Tên lớp có thể tự thêm và chỉnh sửa tại đây. Chỉ các lớp bật <strong>Thi đua</strong> mới tham gia bảng Thi đua tuần.</div>
+        </div>
+      </div>
+
+      <div className="settings-card">
+        <div className="settings-section-title">
+          <div>
+            <h3>🏫 Danh sách lớp</h3>
+            <p className="settings-subtitle">Quản lý lớp của năm học {schoolYearName}.</p>
+          </div>
+          <button className="settings-btn" onClick={openAddClass}>＋ Thêm lớp</button>
+        </div>
+
+        {showClassForm && (
+          <form onSubmit={saveClass} style={{ padding: 15, background: "#f8fbff", border: "1px solid #d9e9f8", borderRadius: 14, marginBottom: 16 }}>
+            <div className="settings-form-grid">
+              <div className="settings-field">
+                <label>Tên lớp</label>
+                <input value={classForm.class_name} onChange={(e) => setClassForm({ ...classForm, class_name: e.target.value })} placeholder="Ví dụ: 1A1" />
+              </div>
+              <div className="settings-field">
+                <label>Khối</label>
+                <select value={classForm.grade} onChange={(e) => setClassForm({ ...classForm, grade: e.target.value })}>
+                  {[1,2,3,4,5].map((grade) => <option key={grade} value={grade}>Khối {grade}</option>)}
+                </select>
+              </div>
+              <div className="settings-field">
+                <label>Cơ sở</label>
+                <select value={classForm.campus} onChange={(e) => setClassForm({ ...classForm, campus: e.target.value as "Trường chính" | "Điểm trường" })}>
+                  <option value="Trường chính">Trường chính</option>
+                  <option value="Điểm trường">Điểm trường</option>
+                </select>
+              </div>
+              <label className="settings-check">
+                <input type="checkbox" checked={classForm.competition_enabled} onChange={(e) => setClassForm({ ...classForm, competition_enabled: e.target.checked })} />
+                Tham gia thi đua tuần
+              </label>
+            </div>
+            <div className="settings-form-actions">
+              <button className="settings-btn" type="submit" disabled={savingClass}>{savingClass ? "Đang lưu..." : editingId ? "💾 Lưu thay đổi" : "💾 Thêm lớp"}</button>
+              <button className="settings-btn secondary" type="button" onClick={resetClassForm}>Hủy</button>
+            </div>
+          </form>
+        )}
+
+        {loading ? (
+          <div className="settings-empty">Đang tải danh sách lớp...</div>
+        ) : classes.length === 0 ? (
+          <div className="settings-empty">Chưa có lớp trong năm học hiện tại.</div>
+        ) : (
+          <div className="settings-table-wrap">
+            <table className="settings-table">
+              <thead>
+                <tr><th>STT</th><th>Lớp</th><th>Khối</th><th>Cơ sở</th><th>Thi đua</th><th>Thao tác</th></tr>
+              </thead>
+              <tbody>
+                {classes.map((item, index) => (
+                  <tr key={item.id}>
+                    <td>{index + 1}</td>
+                    <td><strong>{item.class_name}</strong></td>
+                    <td>{item.grade}</td>
+                    <td>{item.campus}</td>
+                    <td>{item.competition_enabled ? "Có" : "Không"}</td>
+                    <td>
+                      <div className="settings-actions">
+                        <button className="settings-mini-btn edit" onClick={() => openEditClass(item)}>Sửa</button>
+                        <button className="settings-mini-btn delete" onClick={() => deleteClass(item)}>Xóa</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </section>
   );
 }
 
