@@ -1085,28 +1085,432 @@ export default function Home() {
         </header>
 
         {active === "Tổng quan" ? (
-  <Dashboard
-    studentCount={studentCount}
-    teamMemberCount={teamMemberCount}
-    currentWeek={currentWeek}
-    ranking={ranking}
-    activities={activities}
-  />
-) : active === "Học sinh" ? (
-  <StudentsModule />
-) : active === "Thống kê học sinh" ? (
-  <StudentStatistics />
-) : active === "Thi đua tuần" ? (
-  <WeeklyCompetition />
-) : active === "Hoạt động Đội" ? (
-  <TeamActivities role={role === "TPT" ? "TPT" : "CLASS"} />
-) : (
-  <ComingSoon title={active} />
-)}
+          <Dashboard
+            studentCount={studentCount}
+            teamMemberCount={teamMemberCount}
+            currentWeek={currentWeek}
+            ranking={ranking}
+            activities={activities}
+          />
+        ) : active === "Học sinh" ? (
+          <StudentsModule />
+        ) : active === "Thống kê học sinh" ? (
+          <StudentStatistics />
+        ) : active === "Thi đua tuần" ? (
+          <WeeklyCompetition />
+        ) : active === "Hoạt động Đội" ? (
+          <TeamActivities role={role === "TPT" ? "TPT" : "CLASS"} />
+        ) : active === "Vi phạm" ? (
+          <StudentRecordsModule kind="violation" />
+        ) : active === "Khen thưởng" ? (
+          <StudentRecordsModule kind="reward" />
+        ) : (
+          <ComingSoon title={active} />
+        )}
       </main>
     </div>
   );
 }
+
+type RecordKind = "violation" | "reward";
+
+type RecordStudent = {
+  id: string;
+  full_name: string;
+  class_id: string;
+};
+
+type RecordClass = {
+  id: string;
+  class_name: string;
+};
+
+type RecordItem = {
+  id: string;
+  date: string;
+  student_id: string | null;
+  content: string;
+  notes: string | null;
+};
+
+function StudentRecordsModule({ kind }: { kind: RecordKind }) {
+  const isViolation = kind === "violation";
+  const title = isViolation ? "Vi phạm" : "Khen thưởng";
+  const icon = isViolation ? "🚨" : "🎁";
+  const contentLabel = isViolation ? "Nội dung" : "Thành tích";
+  const tableName = isViolation ? "violations" : "rewards";
+
+  const [rows, setRows] = useState<RecordItem[]>([]);
+  const [students, setStudents] = useState<RecordStudent[]>([]);
+  const [classes, setClasses] = useState<RecordClass[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [form, setForm] = useState({
+    date: new Date().toISOString().slice(0, 10),
+    student_id: "",
+    content: "",
+    notes: "",
+  });
+
+  const classMap = useMemo(
+    () => new Map(classes.map((item) => [item.id, item.class_name])),
+    [classes]
+  );
+
+  const studentMap = useMemo(
+    () => new Map(students.map((item) => [item.id, item])),
+    [students]
+  );
+
+  async function loadData() {
+    setLoading(true);
+    setError("");
+
+    const [recordsResult, studentsResult, classesResult] = await Promise.all([
+      supabase
+        .from(tableName)
+        .select(
+          isViolation
+            ? "id, violation_date, student_id, violation_content, notes"
+            : "id, reward_date, student_id, reward_content, notes"
+        )
+        .order(isViolation ? "violation_date" : "reward_date", { ascending: false }),
+      supabase
+        .from("students")
+        .select("id, full_name, class_id")
+        .order("full_name", { ascending: true }),
+      supabase.from("classes").select("id, class_name").order("class_name"),
+    ]);
+
+    if (recordsResult.error) {
+      // Rewards use different column names, so load them with the correct query.
+      const retry = await supabase
+        .from(tableName)
+        .select("*")
+        .order(isViolation ? "violation_date" : "reward_date", { ascending: false });
+
+      if (retry.error) {
+        setError(`Không tải được dữ liệu ${title.toLowerCase()}: ${retry.error.message}`);
+        setRows([]);
+      } else {
+        setRows(
+          ((retry.data ?? []) as any[]).map((item) => ({
+            id: item.id,
+            date: isViolation ? item.violation_date : item.reward_date,
+            student_id: item.student_id ?? null,
+            content: isViolation ? item.violation_content : item.reward_content,
+            notes: item.notes ?? null,
+          }))
+        );
+      }
+    } else {
+      setRows(
+        ((recordsResult.data ?? []) as any[]).map((item) => ({
+          id: item.id,
+          date: isViolation ? item.violation_date : item.reward_date,
+          student_id: item.student_id ?? null,
+          content: isViolation ? item.violation_content : item.reward_content,
+          notes: item.notes ?? null,
+        }))
+      );
+    }
+
+    if (studentsResult.error) {
+      setError(`Không tải được danh sách học sinh: ${studentsResult.error.message}`);
+      setStudents([]);
+    } else {
+      setStudents((studentsResult.data as RecordStudent[]) ?? []);
+    }
+
+    if (classesResult.error) {
+      setClasses([]);
+    } else {
+      setClasses((classesResult.data as RecordClass[]) ?? []);
+    }
+
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    loadData();
+  }, [kind]);
+
+  function openAdd() {
+    setEditingId(null);
+    setForm({
+      date: new Date().toISOString().slice(0, 10),
+      student_id: students[0]?.id ?? "",
+      content: "",
+      notes: "",
+    });
+    setError("");
+    setMessage("");
+    setShowForm(true);
+  }
+
+  function openEdit(row: RecordItem) {
+    setEditingId(row.id);
+    setForm({
+      date: row.date || new Date().toISOString().slice(0, 10),
+      student_id: row.student_id ?? "",
+      content: row.content,
+      notes: row.notes ?? "",
+    });
+    setError("");
+    setMessage("");
+    setShowForm(true);
+  }
+
+  function closeForm() {
+    if (saving) return;
+    setShowForm(false);
+    setEditingId(null);
+  }
+
+  async function saveRecord() {
+    setError("");
+    setMessage("");
+
+    if (!form.date) {
+      setError("Vui lòng chọn ngày.");
+      return;
+    }
+    if (!form.student_id) {
+      setError("Vui lòng chọn học sinh.");
+      return;
+    }
+    if (!form.content.trim()) {
+      setError(`Vui lòng nhập ${contentLabel.toLowerCase()}.`);
+      return;
+    }
+
+    setSaving(true);
+
+    const payload = isViolation
+      ? {
+          violation_date: form.date,
+          student_id: form.student_id,
+          violation_content: form.content.trim(),
+          notes: form.notes.trim() || null,
+        }
+      : {
+          reward_date: form.date,
+          student_id: form.student_id,
+          reward_content: form.content.trim(),
+          reward_type: null,
+          notes: form.notes.trim() || null,
+        };
+
+    const result = editingId
+      ? await supabase.from(tableName).update(payload).eq("id", editingId)
+      : await supabase.from(tableName).insert(payload);
+
+    setSaving(false);
+
+    if (result.error) {
+      setError(`Không lưu được ${title.toLowerCase()}: ${result.error.message}`);
+      return;
+    }
+
+    setMessage(editingId ? "Đã cập nhật." : "Đã ghi nhận.");
+    setShowForm(false);
+    setEditingId(null);
+    await loadData();
+  }
+
+  async function deleteRecord(id: string) {
+    if (!window.confirm(`Xóa bản ghi ${isViolation ? "vi phạm" : "khen thưởng"} này?`)) {
+      return;
+    }
+
+    setError("");
+    setMessage("");
+
+    const { error: deleteError } = await supabase
+      .from(tableName)
+      .delete()
+      .eq("id", id);
+
+    if (deleteError) {
+      setError(`Không xóa được: ${deleteError.message}`);
+      return;
+    }
+
+    setMessage("Đã xóa.");
+    await loadData();
+  }
+
+  return (
+    <section className="records-page">
+      <div className="records-card">
+        <div className="records-heading">
+          <h2>
+            {icon} {title}
+          </h2>
+          <button className="records-add" onClick={openAdd}>
+            + Ghi nhận
+          </button>
+        </div>
+
+        {message && <div className="records-message">{message}</div>}
+        {error && <div className="records-error">{error}</div>}
+
+        <div className="records-table-wrap">
+          <table className="records-table">
+            <thead>
+              <tr>
+                <th>Ngày</th>
+                <th>Họ tên</th>
+                <th>Lớp</th>
+                <th>{contentLabel}</th>
+                <th>Ghi chú</th>
+                <th>Thao tác</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan={6} className="records-empty">Đang tải dữ liệu...</td>
+                </tr>
+              ) : rows.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="records-empty">Chưa có dữ liệu.</td>
+                </tr>
+              ) : (
+                rows.map((row) => {
+                  const student = row.student_id ? studentMap.get(row.student_id) : undefined;
+                  return (
+                    <tr key={row.id}>
+                      <td className="records-date">{formatDate(row.date)}</td>
+                      <td>{student?.full_name ?? "—"}</td>
+                      <td>{student ? classMap.get(student.class_id) ?? "—" : "—"}</td>
+                      <td className="records-content">{row.content}</td>
+                      <td>{row.notes || "—"}</td>
+                      <td className="records-actions">
+                        <button className="records-edit" onClick={() => openEdit(row)}>Sửa</button>
+                        <button className="records-delete" onClick={() => deleteRecord(row.id)}>Xóa</button>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {showForm && (
+        <div className="records-overlay" onMouseDown={closeForm}>
+          <div className="records-modal" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="records-modal-header">
+              <h3>{editingId ? `Sửa ${title.toLowerCase()}` : `Ghi nhận ${title.toLowerCase()}`}</h3>
+              <button className="records-close" onClick={closeForm}>×</button>
+            </div>
+
+            <div className="records-form">
+              <label>
+                Ngày
+                <input
+                  type="date"
+                  value={form.date}
+                  onChange={(e) => setForm({ ...form, date: e.target.value })}
+                />
+              </label>
+
+              <label>
+                Họ tên học sinh
+                <select
+                  value={form.student_id}
+                  onChange={(e) => setForm({ ...form, student_id: e.target.value })}
+                >
+                  <option value="">-- Chọn học sinh --</option>
+                  {students.map((student) => (
+                    <option key={student.id} value={student.id}>
+                      {student.full_name} — {classMap.get(student.class_id) ?? ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label>
+                {contentLabel}
+                <textarea
+                  rows={3}
+                  value={form.content}
+                  onChange={(e) => setForm({ ...form, content: e.target.value })}
+                  placeholder={isViolation ? "Nhập nội dung vi phạm" : "Nhập thành tích"}
+                />
+              </label>
+
+              <label>
+                Ghi chú
+                <textarea
+                  rows={2}
+                  value={form.notes}
+                  onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                  placeholder="Có thể để trống"
+                />
+              </label>
+            </div>
+
+            <div className="records-modal-footer">
+              <button className="records-cancel" onClick={closeForm}>Hủy</button>
+              <button className="records-save" onClick={saveRecord} disabled={saving}>
+                {saving ? "Đang lưu..." : "Lưu"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <style jsx global>{`
+        .records-page { padding: 24px; }
+        .records-card { background:#fff; border:1px solid #e2e8f0; border-radius:22px; padding:30px; box-shadow:0 8px 30px rgba(15,23,42,.05); }
+        .records-heading { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:26px; }
+        .records-heading h2 { margin:0; color:#12213a; font-size:28px; font-weight:850; }
+        .records-add { border:0; border-radius:13px; padding:13px 22px; background:#1976d2; color:#fff; font-size:16px; font-weight:800; cursor:pointer; }
+        .records-add:hover { background:#1266bd; }
+        .records-message,.records-error { margin-bottom:16px; padding:12px 15px; border-radius:12px; font-size:14px; }
+        .records-message { color:#087443; background:#eafaf2; border:1px solid #b9efd3; }
+        .records-error { color:#b42318; background:#fff1f0; border:1px solid #ffc8c3; }
+        .records-table-wrap { width:100%; overflow-x:auto; border:1px solid #dfe5ec; border-radius:17px; }
+        .records-table { width:100%; min-width:850px; border-collapse:separate; border-spacing:0; color:#26344c; font-size:15px; }
+        .records-table th { padding:16px 14px; border-right:1px solid #dfe5ec; border-bottom:1px solid #dfe5ec; background:#f7f9fc; color:#182c4c; text-align:center; font-weight:850; white-space:nowrap; }
+        .records-table th:last-child { border-right:0; }
+        .records-table td { padding:14px; border-right:1px solid #e1e6ec; border-bottom:1px solid #e1e6ec; vertical-align:middle; }
+        .records-table td:last-child { border-right:0; }
+        .records-table tbody tr:last-child td { border-bottom:0; }
+        .records-date { white-space:nowrap; text-align:center; }
+        .records-content { font-weight:700; }
+        .records-actions { white-space:nowrap; text-align:center; }
+        .records-edit,.records-delete { border:0; border-radius:9px; padding:8px 11px; margin:2px; font-weight:800; cursor:pointer; }
+        .records-edit { background:#edf5ff; color:#1267b3; }
+        .records-delete { background:#fff0ef; color:#b42318; }
+        .records-empty { padding:36px !important; color:#75839a; text-align:center !important; }
+        .records-overlay { position:fixed; inset:0; z-index:10000; display:flex; align-items:center; justify-content:center; padding:20px; background:rgba(15,23,42,.52); }
+        .records-modal { width:min(570px,100%); overflow:hidden; border-radius:20px; background:#fff; box-shadow:0 25px 70px rgba(15,23,42,.28); }
+        .records-modal-header { display:flex; align-items:center; justify-content:space-between; padding:19px 22px; border-bottom:1px solid #e6ebf1; }
+        .records-modal-header h3 { margin:0; color:#17233c; font-size:19px; }
+        .records-close { width:34px; height:34px; border:1px solid #dce3eb; border-radius:9px; background:#fff; color:#64748b; font-size:24px; cursor:pointer; }
+        .records-form { display:grid; gap:15px; padding:22px; }
+        .records-form label { display:grid; gap:7px; color:#26344c; font-size:14px; font-weight:800; }
+        .records-form input,.records-form select,.records-form textarea { width:100%; box-sizing:border-box; padding:11px 12px; border:1px solid #d5dee8; border-radius:10px; outline:none; color:#17233c; background:#fff; font:inherit; }
+        .records-form input:focus,.records-form select:focus,.records-form textarea:focus { border-color:#2788dc; box-shadow:0 0 0 3px rgba(39,136,220,.1); }
+        .records-modal-footer { display:flex; justify-content:flex-end; gap:10px; padding:15px 22px 20px; border-top:1px solid #e6ebf1; }
+        .records-cancel,.records-save { padding:10px 16px; border-radius:10px; font-weight:800; cursor:pointer; }
+        .records-cancel { border:1px solid #d7dfe8; background:#fff; color:#526174; }
+        .records-save { border:0; background:#1976d2; color:#fff; }
+        .records-save:disabled { opacity:.6; cursor:default; }
+        @media (max-width:700px) { .records-page { padding:14px; } .records-card { padding:16px; border-radius:16px; } .records-heading { align-items:flex-start; flex-direction:column; } .records-add { width:100%; } .records-heading h2 { font-size:23px; } }
+      `}</style>
+    </section>
+  );
+}
+
 
 function Dashboard({
   studentCount,
