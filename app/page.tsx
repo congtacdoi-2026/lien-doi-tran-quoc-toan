@@ -995,6 +995,125 @@ export default function Home() {
         />
       )}
 
+      <style jsx global>{`
+        /* ===== GIAO DIỆN SIDEBAR + TỔNG QUAN GỌN HƠN ===== */
+        .sidebar {
+          min-height: 100vh !important;
+          height: 100vh !important;
+          box-sizing: border-box !important;
+          overflow-y: auto !important;
+          overflow-x: hidden !important;
+        }
+
+        .sidebar-bottom {
+          margin-top: auto !important;
+          padding-bottom: 18px !important;
+        }
+
+        .nav-item {
+          min-height: 48px !important;
+          height: 48px !important;
+          padding: 8px 14px !important;
+          margin-bottom: 3px !important;
+        }
+
+        .nav-icon {
+          line-height: 1 !important;
+        }
+
+        .logout {
+          color: #ffffff !important;
+          background: rgba(255,255,255,0.10) !important;
+          border: 1px solid rgba(255,255,255,0.16) !important;
+          border-radius: 12px !important;
+          min-height: 44px !important;
+          padding: 9px 14px !important;
+        }
+
+        .logout:hover {
+          color: #ffffff !important;
+          background: rgba(255,255,255,0.18) !important;
+        }
+
+        .side-slogan,
+        .side-slogan strong,
+        .side-slogan span {
+          color: rgba(255,255,255,0.92) !important;
+        }
+
+        /* Tổng quan: giảm chiều cao và khoảng cách một chút */
+        .dashboard {
+          padding-top: 8px !important;
+        }
+
+        .dashboard .hero {
+          padding: 18px 24px !important;
+          margin-bottom: 12px !important;
+          min-height: 108px !important;
+        }
+
+        .dashboard .hero-icon {
+          width: 62px !important;
+          height: 62px !important;
+        }
+
+        .dashboard .hero h2 {
+          margin: 0 0 5px !important;
+        }
+
+        .dashboard .hero p {
+          margin: 0 !important;
+          line-height: 1.35 !important;
+        }
+
+        .dashboard .quote-card {
+          padding: 13px 22px !important;
+          margin-bottom: 14px !important;
+          min-height: 72px !important;
+        }
+
+        .dashboard .stat-grid {
+          gap: 12px !important;
+          margin-bottom: 14px !important;
+        }
+
+        .dashboard .stat-card {
+          min-height: 108px !important;
+          padding: 13px 15px !important;
+        }
+
+        .dashboard .stat-icon {
+          width: 54px !important;
+          height: 54px !important;
+        }
+
+        .dashboard .dashboard-grid {
+          gap: 14px !important;
+        }
+
+        .dashboard .panel {
+          padding: 16px !important;
+        }
+
+        @media (max-height: 850px) {
+          .nav-item {
+            min-height: 44px !important;
+            height: 44px !important;
+            padding: 6px 14px !important;
+          }
+
+          .sidebar-bottom {
+            padding-bottom: 10px !important;
+          }
+        }
+
+        @media (max-width: 900px) {
+          .sidebar {
+            height: 100vh !important;
+          }
+        }
+      `}</style>
+
       <aside className={sidebarOpen ? "sidebar open" : "sidebar"}>
         <div className="side-brand">
           <div className="side-logo">Đ</div>
