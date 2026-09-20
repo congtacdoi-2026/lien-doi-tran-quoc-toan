@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import StudentsModule from "./StudentsModule";
 import StudentStatistics from "./StudentStatistics";
 import WeeklyCompetition from "./WeeklyCompetition";
+import TeamActivities from "./TeamActivities";
 
 type Role = "TPT" | "CLASS" | null;
 
@@ -389,6 +390,8 @@ export default function Home() {
   <StudentStatistics />
 ) : active === "Thi đua tuần" ? (
   <WeeklyCompetition />
+) : active === "Hoạt động Đội" ? (
+  <TeamActivities role={role === "TPT" ? "TPT" : "CLASS"} />
 ) : (
   <ComingSoon title={active} />
 )}
