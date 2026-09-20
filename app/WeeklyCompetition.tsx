@@ -270,15 +270,19 @@ export default function WeeklyCompetition() {
       );
     });
 
-    // Đồng hạng theo Tổng điểm:
+    // Đồng hạng theo Tổng điểm, dùng vị thứ liên tiếp (dense rank):
     // 1, 0, 0, -1, -1, -1, -2
     // => 1, 2, 2, 3, 3, 3, 4
-    return rankedRows.map((row, index) => {
-      const firstSameScoreIndex = rankedRows.findIndex(
-        (item) => item.total === row.total
-      );
+    let currentRank = 0;
+    let previousTotal: number | null = null;
 
-      const rank = firstSameScoreIndex + 1;
+    return rankedRows.map((row) => {
+      if (previousTotal === null || row.total !== previousTotal) {
+        currentRank += 1;
+        previousTotal = row.total;
+      }
+
+      const rank = currentRank;
 
       const classification: DisplayRow["classification"] =
         rank <= 5
