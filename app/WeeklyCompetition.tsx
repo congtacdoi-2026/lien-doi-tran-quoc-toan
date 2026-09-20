@@ -282,7 +282,31 @@ export default function WeeklyCompetition() {
     currentPage * pageSize
   );
 
-  const topFive = rows.filter((row) => row.rank > 0).slice(0, 5);
+  // Xếp hạng bên phải cập nhật theo điểm đang nhập,
+  // nhưng KHÔNG làm thay đổi thứ tự 25 lớp trong bảng nhập.
+  const sidebarRanking = useMemo(() => {
+    const sorted = [...rows].sort((a, b) => {
+      if (b.total !== a.total) return b.total - a.total;
+
+      return (
+        MAIN_CLASS_ORDER.indexOf(a.className) -
+        MAIN_CLASS_ORDER.indexOf(b.className)
+      );
+    });
+
+    return sorted.map((row, index) => ({
+      ...row,
+      rank: index + 1,
+      classification:
+        index < 5
+          ? ("Tốt" as const)
+          : index < 10
+          ? ("Khá" as const)
+          : ("Trung bình" as const),
+    }));
+  }, [rows]);
+
+  const topFive = sidebarRanking.slice(0, 5);
 
   const fullRanking = useMemo(() => {
     const sorted = [...rows].sort((a, b) => {
@@ -307,14 +331,14 @@ export default function WeeklyCompetition() {
 
   const summary = useMemo(
     () => ({
-      total: rows.length,
-      good: rows.filter((r) => r.classification === "Tốt").length,
-      fairly: rows.filter((r) => r.classification === "Khá").length,
-      average: rows.filter(
+      total: sidebarRanking.length,
+      good: sidebarRanking.filter((r) => r.classification === "Tốt").length,
+      fairly: sidebarRanking.filter((r) => r.classification === "Khá").length,
+      average: sidebarRanking.filter(
         (r) => r.classification === "Trung bình"
       ).length,
     }),
-    [rows]
+    [sidebarRanking]
   );
 
   function canEdit(row: DisplayRow) {
