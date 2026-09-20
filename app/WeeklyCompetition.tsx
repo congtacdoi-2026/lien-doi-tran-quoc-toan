@@ -245,7 +245,7 @@ export default function WeeklyCompetition() {
       );
     });
 
-   return recalculated.map((row, index) => {
+   return calculated.map((row, index) => {
   const classification: DisplayRow["classification"] =
     index < 5
       ? "Tốt"
