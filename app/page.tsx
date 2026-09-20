@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import StudentsModule from "./StudentsModule";
 import StudentStatistics from "./StudentStatistics";
+import WeeklyCompetition from "./WeeklyCompetition";
 
 type Role = "TPT" | "CLASS" | null;
 
@@ -386,6 +387,8 @@ export default function Home() {
   <StudentsModule />
 ) : active === "Thống kê học sinh" ? (
   <StudentStatistics />
+) : active === "Thi đua tuần" ? (
+  <WeeklyCompetition />
 ) : (
   <ComingSoon title={active} />
 )}
