@@ -1107,7 +1107,7 @@ export default function Home() {
         ) : active === "RLĐV" ? (
           <RLDVModule role={role === "TPT" ? "TPT" : "CLASS"} />
         ) : active === "Cài đặt" ? (
-          <SettingsModule role={role === "TPT" ? "TPT" : "CLASS"} />
+          <SettingsModule role={role === "TPT" ? "TPT" : "CLASS"} onWeekSaved={setCurrentWeek} />
         ) : (
           <ComingSoon title={active} />
         )}
@@ -2352,7 +2352,7 @@ type SettingsClass = {
   is_active: boolean;
 };
 
-function SettingsModule({ role }: { role: "TPT" | "CLASS" }) {
+function SettingsModule({ role, onWeekSaved }: { role: "TPT" | "CLASS"; onWeekSaved: (week: number) => void }) {
   const [currentWeek, setCurrentWeek] = useState(1);
   const [savedWeek, setSavedWeek] = useState(1);
   const [schoolYearId, setSchoolYearId] = useState<string | null>(null);
@@ -2441,35 +2441,50 @@ function SettingsModule({ role }: { role: "TPT" | "CLASS" }) {
 
   const saveWeek = async () => {
     if (role !== "TPT") return;
+
     setSavingWeek(true);
     setError("");
     setNotice("");
 
-    const { data: setting } = await supabase
-      .from("system_settings")
-      .select("id")
-      .limit(1)
-      .maybeSingle();
+    try {
+      const { data: setting, error: settingError } = await supabase
+        .from("system_settings")
+        .select("id")
+        .limit(1)
+        .maybeSingle();
 
-    if (!setting?.id) {
-      setError("Chưa có dòng cài đặt hệ thống để lưu tuần hiện tại.");
-      setSavingWeek(false);
-      return;
-    }
+      if (settingError) {
+        setError(`Không đọc được cài đặt hệ thống: ${settingError.message}`);
+        return;
+      }
 
-    const { error: updateError } = await supabase
-      .from("system_settings")
-      .update({ current_week: currentWeek, school_year_id: schoolYearId })
-      .eq("id", setting.id);
+      if (!setting?.id) {
+        setError("Chưa có dòng cài đặt hệ thống để lưu tuần hiện tại.");
+        return;
+      }
 
-    if (updateError) {
-      setError(`Không lưu được tuần hiện tại: ${updateError.message}`);
-    } else {
+      const { error: updateError } = await supabase
+        .from("system_settings")
+        .update({
+          current_week: currentWeek,
+          school_year_id: schoolYearId,
+        })
+        .eq("id", setting.id);
+
+      if (updateError) {
+        setError(`Không lưu được tuần hiện tại: ${updateError.message}`);
+        return;
+      }
+
+      // Cập nhật ngay giao diện Tổng quan mà không cần đăng nhập lại.
       setSavedWeek(currentWeek);
+      onWeekSaved(currentWeek);
       setNotice(`Đã lưu Tuần ${currentWeek} cho năm học ${schoolYearName}.`);
+    } catch (err: any) {
+      setError(`Không lưu được tuần hiện tại: ${err?.message ?? "Lỗi không xác định."}`);
+    } finally {
+      setSavingWeek(false);
     }
-
-    setSavingWeek(false);
   };
 
   const resetClassForm = () => {
