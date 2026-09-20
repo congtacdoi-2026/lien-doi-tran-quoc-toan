@@ -171,10 +171,10 @@ if (
 
   const ethnicityStats = useMemo<EthnicityStat[]>(() => {
     const map = new Map<string, number>();
-    students.forEach((s) => {
+   students.forEach((s) => {
   const name = s.ethnicity?.trim();
 
-  if (!isEthnicMinority(name ?? null)) return;
+  if (!name || !isEthnicMinority(name)) return;
 
   map.set(name, (map.get(name) ?? 0) + 1);
 });
