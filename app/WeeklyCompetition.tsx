@@ -245,12 +245,20 @@ export default function WeeklyCompetition() {
       );
     });
 
-    return calculated.map((row, index) => ({
-      ...row,
-      rank: index + 1,
-      classification:
-        index < 5 ? "Tốt" : index < 10 ? "Khá" : "Trung bình",
-    }));
+   return recalculated.map((row, index) => {
+  const classification: DisplayRow["classification"] =
+    index < 5
+      ? "Tốt"
+      : index < 10
+      ? "Khá"
+      : "Trung bình";
+
+  return {
+    ...row,
+    rank: index + 1,
+    classification,
+  };
+});
   }
 
   const totalPages = Math.max(
