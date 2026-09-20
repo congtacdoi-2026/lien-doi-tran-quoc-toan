@@ -66,6 +66,7 @@ export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [currentWeek, setCurrentWeek] = useState(1);
   const [studentCount, setStudentCount] = useState(0);
+  const [teamMemberCount, setTeamMemberCount] = useState(0);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -117,6 +118,15 @@ export default function Home() {
 
     if (typeof count === "number") {
       setStudentCount(count);
+    }
+
+    const { count: teamCount } = await supabase
+      .from("students")
+      .select("*", { count: "exact", head: true })
+      .eq("is_union_member", true);
+
+    if (typeof teamCount === "number") {
+      setTeamMemberCount(teamCount);
     }
 
     const { data } = await supabase
@@ -366,6 +376,7 @@ export default function Home() {
         {active === "Tổng quan" ? (
   <Dashboard
     studentCount={studentCount}
+    teamMemberCount={teamMemberCount}
     currentWeek={currentWeek}
     ranking={ranking}
     activities={activities}
@@ -382,11 +393,13 @@ export default function Home() {
 
 function Dashboard({
   studentCount,
+  teamMemberCount,
   currentWeek,
   ranking,
   activities,
 }: {
   studentCount: number;
+  teamMemberCount: number;
   currentWeek: number;
   ranking: { rank: number; className: string; total: number }[];
   activities: {
@@ -432,7 +445,7 @@ function Dashboard({
         <StatCard
           icon="🎗️"
           title="Đội viên"
-          value="0"
+          value={teamMemberCount.toString()}
           subtitle="đội viên"
           tone="pink"
         />
