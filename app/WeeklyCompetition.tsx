@@ -38,7 +38,7 @@ type DisplayRow = CompetitionRow & {
   grade: number;
   total: number;
   rank: number;
-  classification: "Tốt" | "Khá" | "Trung bình";
+  classification: "" | "Tốt" | "Khá" | "Trung bình";
 };
 
 const SCORE_FIELDS: { key: ScoreField; label: string }[] = [
@@ -97,7 +97,7 @@ export default function WeeklyCompetition() {
   const [weekId, setWeekId] = useState("");
   const [rows, setRows] = useState<DisplayRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [savingId, setSavingId] = useState<string | null>(null);
+  const [savingAll, setSavingAll] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [page, setPage] = useState(1);
@@ -178,8 +178,12 @@ export default function WeeklyCompetition() {
         );
       });
 
-      const displayRows = buildRanking(baseRows, classes);
-      setRows(displayRows);
+      const rankedRows = buildRanking(baseRows, classes);
+      const rankedMap = new Map(
+        rankedRows.map((row) => [row.class_id, row])
+      );
+      const fixedRows = classes.map((c) => rankedMap.get(c.id)!).filter(Boolean);
+      setRows(fixedRows);
 
       const { data: userData } = await supabase.auth.getUser();
 
@@ -194,16 +198,12 @@ export default function WeeklyCompetition() {
         setMyClassId(profile?.class_id ?? null);
       }
     } catch (err) {
-  console.error("LỖI THI ĐUA:", err);
-
-  setError(
-    `Không tải được dữ liệu thi đua: ${
-      err && typeof err === "object"
-        ? JSON.stringify(err)
-        : String(err)
-    }`
-  );
-} finally {
+      setError(
+        `Không tải được dữ liệu thi đua: ${
+          err instanceof Error ? err.message : "Lỗi không xác định"
+        }`
+      );
+    } finally {
       setLoading(false);
     }
   }
@@ -277,7 +277,7 @@ export default function WeeklyCompetition() {
     currentPage * pageSize
   );
 
-  const topFive = rows.slice(0, 5);
+  const topFive = rows.filter((row) => row.rank > 0).slice(0, 5);
 
   const summary = useMemo(
     () => ({
@@ -292,44 +292,124 @@ export default function WeeklyCompetition() {
   );
 
   function canEdit(row: DisplayRow) {
-    return canEditAll || row.class_id === myClassId;
+    return canEditAll;
   }
 
-  async function changeScore(
+  function changeScore(
     row: DisplayRow,
     field: ScoreField,
     delta: number
   ) {
-    if (!canEdit(row) || savingId) return;
+    if (!canEdit(row) || savingAll) return;
 
     const oldValue = row[field];
     const newValue = oldValue + delta;
 
-    const optimistic = rows.map((item) =>
-      item.id === row.id
-        ? { ...item, [field]: newValue }
-        : item
+    setRows((currentRows) =>
+      currentRows.map((item) =>
+        item.class_id === row.class_id
+          ? {
+              ...item,
+              [field]: newValue,
+              total:
+                item.sinh_hoat +
+                item.the_duc +
+                item.ve_sinh +
+                item.vi_pham_khac +
+                item.atgt +
+                item.di_tre +
+                item.thuong +
+                (field === "sinh_hoat" ? delta : 0) +
+                (field === "the_duc" ? delta : 0) +
+                (field === "ve_sinh" ? delta : 0) +
+                (field === "vi_pham_khac" ? delta : 0) +
+                (field === "atgt" ? delta : 0) +
+                (field === "di_tre" ? delta : 0) +
+                (field === "thuong" ? delta : 0),
+            }
+          : item
+      )
     );
+  }
 
-    const recalculated = recalculate(optimistic);
-    setRows(recalculated);
-    setSavingId(`${row.class_id}-${field}`);
+  function buildFixedRows(
+    competitionRows: CompetitionRow[],
+    classes: ClassRow[]
+  ): DisplayRow[] {
+    const classMap = new Map(classes.map((c) => [c.id, c]));
+
+    return competitionRows.map((row) => {
+      const c = classMap.get(row.class_id);
+      const total =
+        row.sinh_hoat +
+        row.the_duc +
+        row.ve_sinh +
+        row.vi_pham_khac +
+        row.atgt +
+        row.di_tre +
+        row.thuong;
+
+      return {
+        ...row,
+        className: c?.class_name ?? "—",
+        grade: c?.grade ?? 0,
+        total,
+        rank: 0,
+        classification: "",
+      };
+    });
+  }
+
+  function buildRanking(
+    competitionRows: CompetitionRow[],
+    classes: ClassRow[]
+  ): DisplayRow[] {
+    const fixedRows = buildFixedRows(competitionRows, classes);
+
+    fixedRows.sort((a, b) => {
+      if (b.total !== a.total) return b.total - a.total;
+
+      return (
+        MAIN_CLASS_ORDER.indexOf(a.className) -
+        MAIN_CLASS_ORDER.indexOf(b.className)
+      );
+    });
+
+    return fixedRows.map((row, index) => {
+      const classification: DisplayRow["classification"] =
+        index < 5
+          ? "Tốt"
+          : index < 10
+          ? "Khá"
+          : "Trung bình";
+
+      return {
+        ...row,
+        rank: index + 1,
+        classification,
+      };
+    });
+  }
+
+  async function saveAll() {
+    if (!canEditAll || savingAll || rows.length === 0) return;
+
+    setSavingAll(true);
+    setError("");
+    setMessage("");
 
     try {
-      const payload = {
+      const payload = rows.map((row) => ({
         week_id: row.week_id,
         class_id: row.class_id,
-        ...SCORE_FIELDS.reduce(
-          (acc, item) => ({
-            ...acc,
-            [item.key]:
-              item.key === field
-                ? newValue
-                : row[item.key],
-          }),
-          {}
-        ),
-      };
+        sinh_hoat: row.sinh_hoat,
+        the_duc: row.the_duc,
+        ve_sinh: row.ve_sinh,
+        vi_pham_khac: row.vi_pham_khac,
+        atgt: row.atgt,
+        di_tre: row.di_tre,
+        thuong: row.thuong,
+      }));
 
       const { error: saveError } = await supabase
         .from("weekly_competition")
@@ -338,69 +418,42 @@ export default function WeeklyCompetition() {
         });
 
       if (saveError) throw saveError;
+
+      const rankedRows = buildRanking(
+        rows.map((row) => ({
+          id: row.id,
+          week_id: row.week_id,
+          class_id: row.class_id,
+          sinh_hoat: row.sinh_hoat,
+          the_duc: row.the_duc,
+          ve_sinh: row.ve_sinh,
+          vi_pham_khac: row.vi_pham_khac,
+          atgt: row.atgt,
+          di_tre: row.di_tre,
+          thuong: row.thuong,
+        })),
+        rows.map((row) => ({
+          id: row.class_id,
+          class_name: row.className,
+          grade: row.grade,
+          campus: "Trường chính" as const,
+          competition_enabled: true,
+        }))
+      );
+
+      setRows(rankedRows);
+      setPage(1);
+      setMessage("Đã lưu điểm và cập nhật Tổng điểm, Vị thứ, Xếp loại.");
+      setTimeout(() => setMessage(""), 3000);
     } catch (err) {
       setError(
         `Không lưu được điểm: ${
-          err instanceof Error
-            ? err.message
-            : "Lỗi không xác định"
+          err instanceof Error ? err.message : "Lỗi không xác định"
         }`
       );
-
-      await loadCompetition();
     } finally {
-      setSavingId(null);
+      setSavingAll(false);
     }
-  }
-
-  function recalculate(items: DisplayRow[]): DisplayRow[] {
-  const calculated: DisplayRow[] = items.map((row) => ({
-    ...row,
-    total:
-      row.sinh_hoat +
-      row.the_duc +
-      row.ve_sinh +
-      row.vi_pham_khac +
-      row.atgt +
-      row.di_tre +
-      row.thuong,
-  }));
-
-  calculated.sort((a, b) => {
-    if (b.total !== a.total) {
-      return b.total - a.total;
-    }
-
-    return (
-      MAIN_CLASS_ORDER.indexOf(a.className) -
-      MAIN_CLASS_ORDER.indexOf(b.className)
-    );
-  });
-
-  return calculated.map((row, index): DisplayRow => {
-    let classification: DisplayRow["classification"];
-
-    if (index < 5) {
-      classification = "Tốt";
-    } else if (index < 10) {
-      classification = "Khá";
-    } else {
-      classification = "Trung bình";
-    }
-
-    return {
-      ...row,
-      rank: index + 1,
-      classification,
-    };
-  });
-}
-  function saveAll() {
-    setMessage(
-      "Các thay đổi đã được lưu tự động."
-    );
-
-    setTimeout(() => setMessage(""), 2500);
   }
 
   return (
@@ -444,15 +497,16 @@ export default function WeeklyCompetition() {
           </span>
 
           <span>
-            Điểm được tự động lưu.
+            Nhập xong bấm “Lưu tất cả” để cập nhật Tổng điểm và Vị thứ.
           </span>
         </div>
 
         <button
           className="competition-save-button"
           onClick={saveAll}
+          disabled={!canEditAll || savingAll}
         >
-          💾 Lưu tất cả
+          {savingAll ? "⏳ Đang lưu..." : "💾 Lưu tất cả"}
         </button>
       </div>
 
@@ -515,10 +569,6 @@ export default function WeeklyCompetition() {
                           <ScoreControl
                             value={row[field.key]}
                             disabled={!canEdit(row)}
-                            saving={
-                              savingId ===
-                              `${row.class_id}-${field.key}`
-                            }
                             onIncrease={() =>
                               changeScore(
                                 row,
@@ -553,17 +603,18 @@ export default function WeeklyCompetition() {
 
                       <td>
                         <span className="competition-rank-number">
-                          {row.rank}
+                          {row.rank || "—"}
                         </span>
                       </td>
 
                       <td>
                         <span
                           className={`competition-classification ${row.classification
-                            .toLowerCase()
-                            .replace(" ", "-")}`}
+                            ? row.classification.toLowerCase()
+                            .replace(" ", "-")
+                            : "empty"}`}
                         >
-                          {row.classification}
+                          {row.classification || "—"}
                         </span>
                       </td>
                     </tr>
@@ -762,13 +813,11 @@ export default function WeeklyCompetition() {
 function ScoreControl({
   value,
   disabled,
-  saving,
   onIncrease,
   onDecrease,
 }: {
   value: number;
   disabled: boolean;
-  saving: boolean;
   onIncrease: () => void;
   onDecrease: () => void;
 }) {
@@ -780,7 +829,7 @@ function ScoreControl({
     >
       <button
         type="button"
-        disabled={disabled || saving}
+        disabled={disabled}
         onClick={onIncrease}
         aria-label="Tăng 1 điểm"
       >
@@ -788,12 +837,12 @@ function ScoreControl({
       </button>
 
       <strong>
-        {saving ? "…" : value}
+        {value}
       </strong>
 
       <button
         type="button"
-        disabled={disabled || saving}
+        disabled={disabled}
         onClick={onDecrease}
         aria-label="Giảm 1 điểm"
       >
