@@ -178,12 +178,10 @@ export default function WeeklyCompetition() {
         );
       });
 
-      const rankedRows = buildRanking(baseRows, classes);
-      const rankedMap = new Map(
-        rankedRows.map((row) => [row.class_id, row])
-      );
-      const fixedRows = classes.map((c) => rankedMap.get(c.id)!).filter(Boolean);
-      setRows(fixedRows);
+      // Khi đang nhập, luôn giữ thứ tự cố định 1A1 → 5A5.
+      // Chỉ sau khi bấm “Lưu tất cả” mới tính vị thứ và xếp loại.
+      setRows(buildFixedRows(baseRows, classes));
+      setPage(1);
 
       const { data: userData } = await supabase.auth.getUser();
 
@@ -212,13 +210,14 @@ export default function WeeklyCompetition() {
     loadCompetition();
   }, []);
 
-  function buildRanking(
+  function buildFixedRows(
     competitionRows: CompetitionRow[],
     classes: ClassRow[]
   ): DisplayRow[] {
     const classMap = new Map(classes.map((c) => [c.id, c]));
 
-    const calculated = competitionRows.map((row) => {
+    return competitionRows.map((row) => {
+      const c = classMap.get(row.class_id);
       const total =
         row.sinh_hoat +
         row.the_duc +
@@ -228,19 +227,24 @@ export default function WeeklyCompetition() {
         row.di_tre +
         row.thuong;
 
-      const c = classMap.get(row.class_id);
-
       return {
         ...row,
         className: c?.class_name ?? "—",
         grade: c?.grade ?? 0,
         total,
         rank: 0,
-        classification: "Trung bình" as const,
+        classification: "" as const,
       };
     });
+  }
 
-    calculated.sort((a, b) => {
+  function buildRanking(
+    competitionRows: CompetitionRow[],
+    classes: ClassRow[]
+  ): DisplayRow[] {
+    const rankedRows = buildFixedRows(competitionRows, classes);
+
+    rankedRows.sort((a, b) => {
       if (b.total !== a.total) return b.total - a.total;
 
       return (
@@ -249,20 +253,20 @@ export default function WeeklyCompetition() {
       );
     });
 
-   return calculated.map((row, index) => {
-  const classification: DisplayRow["classification"] =
-    index < 5
-      ? "Tốt"
-      : index < 10
-      ? "Khá"
-      : "Trung bình";
+    return rankedRows.map((row, index) => {
+      const classification: DisplayRow["classification"] =
+        index < 5
+          ? "Tốt"
+          : index < 10
+          ? "Khá"
+          : "Trung bình";
 
-  return {
-    ...row,
-    rank: index + 1,
-    classification,
-  };
-});
+      return {
+        ...row,
+        rank: index + 1,
+        classification,
+      };
+    });
   }
 
   const totalPages = Math.max(
@@ -330,65 +334,6 @@ export default function WeeklyCompetition() {
           : item
       )
     );
-  }
-
-  function buildFixedRows(
-    competitionRows: CompetitionRow[],
-    classes: ClassRow[]
-  ): DisplayRow[] {
-    const classMap = new Map(classes.map((c) => [c.id, c]));
-
-    return competitionRows.map((row) => {
-      const c = classMap.get(row.class_id);
-      const total =
-        row.sinh_hoat +
-        row.the_duc +
-        row.ve_sinh +
-        row.vi_pham_khac +
-        row.atgt +
-        row.di_tre +
-        row.thuong;
-
-      return {
-        ...row,
-        className: c?.class_name ?? "—",
-        grade: c?.grade ?? 0,
-        total,
-        rank: 0,
-        classification: "",
-      };
-    });
-  }
-
-  function buildRanking(
-    competitionRows: CompetitionRow[],
-    classes: ClassRow[]
-  ): DisplayRow[] {
-    const fixedRows = buildFixedRows(competitionRows, classes);
-
-    fixedRows.sort((a, b) => {
-      if (b.total !== a.total) return b.total - a.total;
-
-      return (
-        MAIN_CLASS_ORDER.indexOf(a.className) -
-        MAIN_CLASS_ORDER.indexOf(b.className)
-      );
-    });
-
-    return fixedRows.map((row, index) => {
-      const classification: DisplayRow["classification"] =
-        index < 5
-          ? "Tốt"
-          : index < 10
-          ? "Khá"
-          : "Trung bình";
-
-      return {
-        ...row,
-        rank: index + 1,
-        classification,
-      };
-    });
   }
 
   async function saveAll() {
