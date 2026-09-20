@@ -194,12 +194,16 @@ export default function WeeklyCompetition() {
         setMyClassId(profile?.class_id ?? null);
       }
     } catch (err) {
-      setError(
-        `Không tải được dữ liệu thi đua: ${
-          err instanceof Error ? err.message : "Lỗi không xác định"
-        }`
-      );
-    } finally {
+  console.error("LỖI THI ĐUA:", err);
+
+  setError(
+    `Không tải được dữ liệu thi đua: ${
+      err && typeof err === "object"
+        ? JSON.stringify(err)
+        : String(err)
+    }`
+  );
+} finally {
       setLoading(false);
     }
   }
