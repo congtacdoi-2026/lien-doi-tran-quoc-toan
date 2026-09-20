@@ -789,15 +789,15 @@ export default function StudentsModule() {
           </button>
 
           <label className="excel-button">
-            📥 Nhập Excel
-            <input
-              type="file"
-              accept=".xlsx,.xls"
-              onChange={importExcel}
-              disabled={importing}
-              hidden
-            />
-          </label>
+  {importing ? "⏳ Đang nhập..." : "📥 Nhập Excel"}
+  <input
+    type="file"
+    accept=".xlsx,.xls"
+    onChange={importExcel}
+    disabled={importing}
+    style={{ display: "none" }}
+  />
+</label>
 
           <button
             className="excel-button"
