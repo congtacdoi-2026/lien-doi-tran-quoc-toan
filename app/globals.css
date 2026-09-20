@@ -1179,7 +1179,24 @@ select:focus-visible {
   align-items: center;
   gap: 10px;
 }
+.excel-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 9px 16px;
+  border-radius: 10px;
+  background: #eef4ff;
+  color: #1769c2;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
 
+.excel-button:hover {
+  background: #e0ecff;
+}
 .students-alert {
   padding: 12px 16px;
   border-radius: 12px;
