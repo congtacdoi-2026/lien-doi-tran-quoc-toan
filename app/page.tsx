@@ -1290,24 +1290,32 @@ function StudentRecordsModule({ kind }: { kind: RecordKind }) {
 
     setSaving(true);
 
-    const payload = isViolation
-      ? {
-          violation_date: form.date,
-          student_id: form.student_id,
-          violation_content: form.content.trim(),
-          notes: form.notes.trim() || null,
-        }
-      : {
-          reward_date: form.date,
-          student_id: form.student_id,
-          reward_content: form.content.trim(),
-          reward_type: null,
-          notes: form.notes.trim() || null,
-        };
+    let result;
 
-    const result = editingId
-      ? await supabase.from(tableName).update(payload).eq("id", editingId)
-      : await supabase.from(tableName).insert(payload);
+    if (isViolation) {
+      const payload = {
+        violation_date: form.date,
+        student_id: form.student_id,
+        violation_content: form.content.trim(),
+        notes: form.notes.trim() || null,
+      };
+
+      result = editingId
+        ? await supabase.from("violations").update(payload).eq("id", editingId)
+        : await supabase.from("violations").insert(payload);
+    } else {
+      const payload = {
+        reward_date: form.date,
+        student_id: form.student_id,
+        reward_content: form.content.trim(),
+        reward_type: null,
+        notes: form.notes.trim() || null,
+      };
+
+      result = editingId
+        ? await supabase.from("rewards").update(payload).eq("id", editingId)
+        : await supabase.from("rewards").insert(payload);
+    }
 
     setSaving(false);
 
