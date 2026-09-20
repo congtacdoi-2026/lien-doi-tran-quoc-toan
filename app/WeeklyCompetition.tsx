@@ -349,35 +349,45 @@ export default function WeeklyCompetition() {
     }
   }
 
-  function recalculate(items: DisplayRow[]) {
-    const recalculated = items.map((row) => ({
-      ...row,
-      total:
-        row.sinh_hoat +
-        row.the_duc +
-        row.ve_sinh +
-        row.vi_pham_khac +
-        row.atgt +
-        row.di_tre +
-        row.thuong,
-    }));
+  function recalculate(items: DisplayRow[]): DisplayRow[] {
+  const calculated: DisplayRow[] = items.map((row) => ({
+    ...row,
+    total:
+      row.sinh_hoat +
+      row.the_duc +
+      row.ve_sinh +
+      row.vi_pham_khac +
+      row.atgt +
+      row.di_tre +
+      row.thuong,
+  }));
 
-    recalculated.sort((a, b) => {
-      if (b.total !== a.total) return b.total - a.total;
+  calculated.sort((a, b) => {
+    if (b.total !== a.total) {
+      return b.total - a.total;
+    }
 
-      return (
-        MAIN_CLASS_ORDER.indexOf(a.className) -
-        MAIN_CLASS_ORDER.indexOf(b.className)
-      );
-    });
+    return (
+      MAIN_CLASS_ORDER.indexOf(a.className) -
+      MAIN_CLASS_ORDER.indexOf(b.className)
+    );
+  });
 
-    return recalculated.map((row, index) => ({
+  return calculated.map((row, index) => {
+    const classification: DisplayRow["classification"] =
+      index < 5
+        ? "Tốt"
+        : index < 10
+        ? "Khá"
+        : "Trung bình";
+
+    return {
       ...row,
       rank: index + 1,
-      classification:
-        index < 5 ? "Tốt" : index < 10 ? "Khá" : "Trung bình",
-    }));
-  }
+      classification,
+    };
+  });
+}
 
   function saveAll() {
     setMessage(
