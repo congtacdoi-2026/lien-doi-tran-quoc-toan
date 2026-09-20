@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import StudentsModule from "./StudentsModule";
 
 type Role = "TPT" | "CLASS" | null;
 
@@ -363,15 +364,17 @@ export default function Home() {
         </header>
 
         {active === "Tổng quan" ? (
-          <Dashboard
-            studentCount={studentCount}
-            currentWeek={currentWeek}
-            ranking={ranking}
-            activities={activities}
-          />
-        ) : (
-          <ComingSoon title={active} />
-        )}
+  <Dashboard
+    studentCount={studentCount}
+    currentWeek={currentWeek}
+    ranking={ranking}
+    activities={activities}
+  />
+) : active === "Học sinh" ? (
+  <StudentsModule />
+) : (
+  <ComingSoon title={active} />
+)}
       </main>
     </div>
   );
