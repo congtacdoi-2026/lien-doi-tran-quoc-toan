@@ -778,6 +778,9 @@ export default function Home() {
   const [currentWeek, setCurrentWeek] = useState(1);
   const [studentCount, setStudentCount] = useState(0);
   const [teamMemberCount, setTeamMemberCount] = useState(0);
+  const [childCounts, setChildCounts] = useState([0, 0, 0, 0, 0]);
+  const [classCount, setClassCount] = useState(0);
+  const [competitionClassCount, setCompetitionClassCount] = useState(0);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -801,10 +804,10 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (role) {
+    if (role && active === "Tổng quan") {
       loadDashboardData();
     }
-  }, [role]);
+  }, [role, active]);
 
   async function loadProfile(userId: string) {
     const { data, error } = await supabase
@@ -823,31 +826,48 @@ export default function Home() {
   }
 
   async function loadDashboardData() {
-    const { count } = await supabase
-      .from("students")
-      .select("*", { count: "exact", head: true });
+    const [studentsResult, classesResult, settingResult] = await Promise.all([
+      supabase
+        .from("students")
+        .select("id,class_id,is_union_member"),
+      supabase
+        .from("classes")
+        .select("id,grade,campus,competition_enabled")
+        .eq("is_active", true),
+      supabase
+        .from("system_settings")
+        .select("current_week")
+        .limit(1)
+        .maybeSingle(),
+    ]);
 
-    if (typeof count === "number") {
-      setStudentCount(count);
-    }
+    const students = (studentsResult.data ?? []) as {
+      id: string;
+      class_id: string;
+      is_union_member: boolean;
+    }[];
+    const classes = (classesResult.data ?? []) as {
+      id: string;
+      grade: number;
+      campus: string;
+      competition_enabled: boolean;
+    }[];
 
-    const { count: teamCount } = await supabase
-      .from("students")
-      .select("*", { count: "exact", head: true })
-      .eq("is_union_member", true);
+    setStudentCount(students.length);
+    setTeamMemberCount(students.filter((item) => item.is_union_member).length);
+    setClassCount(classes.length);
+    setCompetitionClassCount(classes.filter((item) => item.competition_enabled).length);
 
-    if (typeof teamCount === "number") {
-      setTeamMemberCount(teamCount);
-    }
+    const gradeByClass = new Map(classes.map((item) => [item.id, item.grade]));
+    const counts = [0, 0, 0, 0, 0];
+    students.forEach((student) => {
+      const grade = gradeByClass.get(student.class_id);
+      if (grade && grade >= 1 && grade <= 5) counts[grade - 1] += 1;
+    });
+    setChildCounts(counts);
 
-    const { data } = await supabase
-      .from("system_settings")
-      .select("current_week")
-      .limit(1)
-      .maybeSingle();
-
-    if (data?.current_week) {
-      setCurrentWeek(data.current_week);
+    if (typeof settingResult.data?.current_week === "number") {
+      setCurrentWeek(settingResult.data.current_week);
     }
   }
 
@@ -1095,6 +1115,45 @@ export default function Home() {
           padding: 16px !important;
         }
 
+        .dashboard .activity-row {
+          width: 100%;
+          border: 0;
+          background: transparent;
+          text-align: left;
+          font: inherit;
+          cursor: pointer;
+        }
+
+        .dashboard .activity-row:hover {
+          background: #f7fbff;
+          border-radius: 12px;
+        }
+
+        .dashboard .text-button:not(:disabled) {
+          cursor: pointer;
+        }
+
+        .dashboard .text-button:disabled {
+          cursor: default;
+          opacity: 1;
+        }
+
+        .dashboard .dashboard-nav-button {
+          position: relative;
+          z-index: 5;
+          pointer-events: auto !important;
+        }
+
+        .dashboard .dashboard-ranking-position .ranking-head,
+        .dashboard .dashboard-ranking-position .ranking-row {
+          grid-template-columns: 1fr 120px !important;
+        }
+
+        .dashboard .dashboard-ranking-position .ranking-head span:last-child,
+        .dashboard .dashboard-ranking-position .ranking-row span:last-child {
+          text-align: center;
+        }
+
         @media (max-height: 850px) {
           .nav-item {
             min-height: 44px !important;
@@ -1207,9 +1266,14 @@ export default function Home() {
           <Dashboard
             studentCount={studentCount}
             teamMemberCount={teamMemberCount}
+            childCount={childCounts[0] + childCounts[1] + childCounts[2]}
+            gradeCounts={childCounts}
+            classCount={classCount}
+            competitionClassCount={competitionClassCount}
             currentWeek={currentWeek}
             ranking={ranking}
             activities={activities}
+            onNavigate={setActive}
           />
         ) : active === "Học sinh" ? (
           <StudentsModule />
@@ -2158,12 +2222,21 @@ function RLDVModule({ role }: { role: RLDVRole }) {
 function Dashboard({
   studentCount,
   teamMemberCount,
+  childCount,
+  gradeCounts,
+  classCount,
+  competitionClassCount,
   currentWeek,
   ranking,
   activities,
+  onNavigate,
 }: {
   studentCount: number;
   teamMemberCount: number;
+  childCount: number;
+  gradeCounts: number[];
+  classCount: number;
+  competitionClassCount: number;
   currentWeek: number;
   ranking: { rank: number; className: string; total: number }[];
   activities: {
@@ -2172,6 +2245,7 @@ function Dashboard({
     text: string;
     date: string;
   }[];
+  onNavigate: (page: string) => void;
 }) {
   return (
     <div className="dashboard">
@@ -2215,10 +2289,10 @@ function Dashboard({
         />
 
         <StatCard
-          icon="🏫"
-          title="Số lớp"
-          value="47"
-          subtitle="lớp toàn trường"
+          icon="🌼"
+          title="Nhi đồng"
+          value={childCount.toString()}
+          subtitle="học sinh khối 1–3"
           tone="yellow"
         />
 
@@ -2231,10 +2305,10 @@ function Dashboard({
         />
 
         <StatCard
-          icon="🏆"
-          title="Thi đua"
-          value="25"
-          subtitle="lớp trường chính"
+          icon="🏫"
+          title="Số lớp"
+          value={classCount.toString()}
+          subtitle={`${competitionClassCount} lớp thi đua`}
           tone="purple"
         />
       </section>
@@ -2244,45 +2318,19 @@ function Dashboard({
           <PanelTitle icon="📊" title="Tổng quan học sinh" />
 
           <div className="fake-chart">
-            <div className="chart-row">
-              <span>Khối 1</span>
-              <div className="bar">
-                <i style={{ width: "72%" }} />
+            {[1, 2, 3, 4, 5].map((grade) => (
+              <div className="chart-row" key={grade}>
+                <span>Khối {grade}</span>
+                <div className="bar">
+                  <i
+                    style={{
+                      width: `${studentCount > 0 ? Math.max(4, (gradeCounts[grade - 1] / Math.max(...gradeCounts, 1)) * 100) : 0}%`,
+                    }}
+                  />
+                </div>
+                <strong>{gradeCounts[grade - 1]}</strong>
               </div>
-              <strong>0</strong>
-            </div>
-
-            <div className="chart-row">
-              <span>Khối 2</span>
-              <div className="bar">
-                <i style={{ width: "85%" }} />
-              </div>
-              <strong>0</strong>
-            </div>
-
-            <div className="chart-row">
-              <span>Khối 3</span>
-              <div className="bar">
-                <i style={{ width: "66%" }} />
-              </div>
-              <strong>0</strong>
-            </div>
-
-            <div className="chart-row">
-              <span>Khối 4</span>
-              <div className="bar">
-                <i style={{ width: "78%" }} />
-              </div>
-              <strong>0</strong>
-            </div>
-
-            <div className="chart-row">
-              <span>Khối 5</span>
-              <div className="bar">
-                <i style={{ width: "58%" }} />
-              </div>
-              <strong>0</strong>
-            </div>
+            ))}
           </div>
 
           <div className="chart-note">
@@ -2299,15 +2347,16 @@ function Dashboard({
             </select>
           </div>
 
-          <div className="ranking-table">
+          <div className="ranking-table dashboard-ranking-position">
             <div className="ranking-head">
-              <span>Hạng</span>
               <span>Chi đội</span>
-              <span>Tổng điểm</span>
+              <span>Vị thứ</span>
             </div>
 
             {ranking.map((item) => (
               <div className="ranking-row" key={item.rank}>
+                <strong>{item.className}</strong>
+
                 <span className="rank-number">
                   {item.rank === 1
                     ? "🥇"
@@ -2317,15 +2366,15 @@ function Dashboard({
                     ? "🥉"
                     : item.rank}
                 </span>
-
-                <strong>{item.className}</strong>
-
-                <b>{item.total}</b>
               </div>
             ))}
           </div>
 
-          <button className="outline-button">
+          <button
+            type="button"
+            className="outline-button dashboard-nav-button"
+            onClick={() => onNavigate("Thi đua tuần")}
+          >
             Xem bảng xếp hạng đầy đủ →
           </button>
         </div>
@@ -2334,7 +2383,12 @@ function Dashboard({
           <PanelTitle icon="🎯" title="Hoạt động Đội gần đây" />
 
           {activities.map((activity, index) => (
-            <div className="activity-row" key={index}>
+            <button
+              type="button"
+              className="activity-row"
+              key={index}
+              onClick={() => onNavigate("Hoạt động Đội")}
+            >
               <div className="activity-icon">{activity.icon}</div>
 
               <div>
@@ -2343,10 +2397,16 @@ function Dashboard({
               </div>
 
               {activity.date && <small>{activity.date}</small>}
-            </div>
+            </button>
           ))}
 
-          <button className="text-button">Xem tất cả →</button>
+          <button
+            type="button"
+            className="text-button dashboard-nav-button"
+            onClick={() => onNavigate("Hoạt động Đội")}
+          >
+            Xem tất cả →
+          </button>
         </div>
       </section>
 
@@ -2360,6 +2420,7 @@ function Dashboard({
             "Hãy thêm khen thưởng cho học sinh",
             "Dữ liệu sẽ hiển thị tại đây",
           ]}
+          onClick={() => onNavigate("Khen thưởng")}
         />
 
         <InfoPanel
@@ -2371,6 +2432,7 @@ function Dashboard({
             "Dữ liệu vi phạm sẽ hiển thị tại đây",
             "Có thể quản lý theo từng lớp",
           ]}
+          onClick={() => onNavigate("Vi phạm")}
         />
 
         <InfoPanel
@@ -2382,6 +2444,7 @@ function Dashboard({
             "Hoạt động Đội",
             "Cập nhật hồ sơ RLĐV",
           ]}
+          onClick={() => onNavigate("RLĐV")}
         />
       </section>
 
@@ -2439,11 +2502,13 @@ function InfoPanel({
   title,
   tone,
   items,
+  onClick,
 }: {
   icon: string;
   title: string;
   tone: string;
   items: string[];
+  onClick?: () => void;
 }) {
   return (
     <div className={`panel info-panel ${tone}`}>
@@ -2456,7 +2521,13 @@ function InfoPanel({
         </div>
       ))}
 
-      <button className="text-button">Xem tất cả →</button>
+      <button
+        type="button"
+        className="text-button dashboard-nav-button"
+        onClick={onClick}
+      >
+        Xem tất cả →
+      </button>
     </div>
   );
 }
